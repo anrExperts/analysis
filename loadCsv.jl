@@ -35,7 +35,11 @@ end
 
 # Par défaut, les étiquettes `header` figurent en ligne 1, tandis que les délimiteurs `delim` sont des `,`
 for row in csvReader
-    println("values: $(row.col1), $(row.col2), $(row.col3)")
+    println("values: $(row.col1),  $(row.col2), $(row.col3)")
+end
+# Les valeurs sont typées
+for row in csvReader
+    println("values: $(row.col1), $(typeof(row.col1)),  $(row.col2), $(typeof(row.col2)), $(row.col3), $(typeof(row.col3))")
 end
 
 # Ces paramètres peuvent être définis lors du chargement des fichiers. header peut valoir `false`
@@ -75,7 +79,5 @@ DataFrame(CSV.File(read("file_encoding.csv", enc"windows-1250")))
 # CSV reader infère le type mais celui-ci peut être erroné. Il est possible de spécifier un type avec `type` pour l’ensemble du DataFrame ou avec `types` pour une colonne donnée.
 
 
-
-
 # Dans l’objet `CSV.Row`
-data = CSV.File("../../Downloads/dataScience/Magic/magic04.csv")
+data = CSV.File("../../Downloads/dataScience/Magic/magic04.csv") |> DataFrame
