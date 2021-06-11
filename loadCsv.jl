@@ -1,6 +1,8 @@
 # Read CSV to Data Frame in Julia #
 
 # La première étape pour toute analyse de données consiste à récupérer les données. Les fonctions utiles pour charger des fichiers CSV dans des DataFrames se répartissent entre `CSV.jl` et `DataFrames.jl`, il y a plusieurs manière de les combiner entre eux
+# @source https://www.geeksforgeeks.org/working-with-csv-files-in-julia/
+# @source https://towardsdatascience.com/read-csv-to-data-frame-in-julia-programming-lang-77f3d0081c14
 
 # chargez les deux librairies après les avoir installées avec le gestionnaire de paquets (`add CSV; add DataFrames`)
 using CSV
@@ -81,3 +83,27 @@ DataFrame(CSV.File(read("file_encoding.csv", enc"windows-1250")))
 
 # Dans l’objet `CSV.Row`
 data = CSV.File("../../Downloads/dataScience/Magic/magic04.csv") |> DataFrame
+
+# écrire un fichier csv à partir d’un DataFrame
+df = DataFrame(
+    Name = ["Marie", "François", "René"],
+    Age = [32, 42, 21],
+    Ville = ["Paris", "Nantes", "Paris"]
+)
+CSV.write("myfile.csv", df)
+
+# Ouverture d’un fichier en mode écriture
+efg = open("myfile.csv", "w")
+mn = DataFrame(
+    Name = ["Marie", "François", "René"],
+    Age = [33, 42, 21],
+    Ville = ["Paris", "Nantes", "Paris"]
+)
+CSV.write("myfile.csv", mn)
+CSV.File("myfile.csv") |> DataFrame
+# Effacer une colonne d’un fichier CSV
+CSV.File("myfile.csv"; drop=[:Ville])
+# Sélectionner plusieurs colonnes
+CSV.File("myfile.csv"; select=["Name", "Age"])
+# Sélectionner des colomnes par leur numéro
+CSV.File("myfile.csv"; select=(i, nm) -> i in (1, 2))
