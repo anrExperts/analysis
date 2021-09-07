@@ -106,7 +106,8 @@ normmp = transpose(normm) * normm
 # matrice normalisée transposée
 normmt = normm * transpose(normm)
 
-graphnormp = [LightGraphs.outdegree(Graph(normmp), v) for v in 1:numExperts]
-
 
 gplot(Graph(normmp), layout=layout)
+
+nodesize = vec(sum(normmp, dims=1))
+gplot(Graph(normmp), layout=layout, nodesize=nodesize, )
