@@ -11,8 +11,8 @@ using Statistics
 using UnicodePlots
 
 #crée un dataframe à partir des données tabulaires de l'année.
-data = CSV.File(HTTP.get("http://localhost:8984/xpr/data/1726/expertises").body, header=1) |> DataFrame
-data1 = CSV.File(HTTP.get("http://localhost:8984/xpr/data/1726").body, header=1) |> DataFrame
+data = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/1726/expertises").body, header=1) |> DataFrame
+data1 = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/1726/categories").body, header=1) |> DataFrame
 #création d'un vecteur contenant les noms des experts à partir de la colone label du dataframe
 expertisesNodes = data[!, :label]
 #nb d'experts
