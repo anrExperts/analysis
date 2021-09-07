@@ -13,6 +13,9 @@ using UnicodePlots
 #crée un dataframe à partir des données tabulaires de l'année.
 data = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/1726/expertises").body, header=1) |> DataFrame
 data1 = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/1726/categories").body, header=1) |> DataFrame
+
+# @todo mettre en évidence la répartition inégale des affaires entre experts
+
 #création d'un vecteur contenant les noms des experts à partir de la colone label du dataframe
 expertisesNodes = data[!, :label]
 #nb d'experts
@@ -73,6 +76,7 @@ end
 color = [colorant"lightseagreen", colorant"orange"]
 #creation du vecteur couleur (rgb)
 nodefillc=color[nodecolor]
+layout=(args...)->spring_layout(args...; C=20)
 gplot(expertisesGraph, nodefillc=nodefillc, layout=layout)
 ExpertiseMatrix = Matrix(adjacency_matrix(expertisesGraph))
 m = ExpertiseMatrix[1:numExpertises, (numExpertises+1):numNodes]
@@ -80,8 +84,29 @@ mp = transpose(m) * m
 mt = m * transpose(m)
 gmp = Graph(mp)
 nodesizeGmp = [LightGraphs.outdegree(Graph(gmp), v) for v in 1:numExperts]
-layout=(args...)->spring_layout(args...; C=20)
+
 gplot(gmp, nodelabel=expertNames, layout=layout, nodesize=nodesizeGmp)
-bc =LightGraphs.betweenness_centrality(gmp)
-df = DataFrame(Experts = expertNodes, bc = bc)
-describe(df)
+
+# certains experts participent à plus d’affaires, Borgatti suggère de normaliser les valeurs en utilisant Bonacich
+
+# dans m, diviser les valeurs de la matrice d’origine par la √ de la somme de la colonne d’origine
+
+colsum = sum(m, dims=1)
+
+ponderation = vec(broadcast(√, colsum))
+
+ponderate(x) = x ./ ponderation
+
+# calculer la matrice normalisée en supprimant les valeurs NaN
+normm = replace!(mapslices(x -> ponderate(x), m, dims=2), NaN => 0)
+
+# matrice normalisée projetée
+normmp = transpose(normm) * normm
+
+# matrice normalisée transposée
+normmt = normm * transpose(normm)
+
+graphnormp = [LightGraphs.outdegree(Graph(normmp), v) for v in 1:numExperts]
+
+
+gplot(Graph(normmp), layout=layout)
