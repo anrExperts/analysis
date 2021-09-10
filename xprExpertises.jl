@@ -8,7 +8,10 @@ using MetaGraphs
 using GraphPlot
 using Colors
 using Statistics
+using StatsBase
+using Plots
 using UnicodePlots
+
 
 #########################################################
 # Données tabulaires brutes
@@ -22,6 +25,7 @@ expertisesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/
 categoriesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/$year/categories").body, header=1) |> DataFrame
 
 # données sur les experts
+# @ todo compléter dates avec les almanachs
 expertsData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/experts").body, header=1) |> DataFrame
 
 # données sur les expertises
@@ -31,8 +35,17 @@ expertisesData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/e
 
 # Les données regroupe 468 d'affaires dépouillées qui représentent un nombre moyen d'affaires dans le dépouillement pour le début de la période étudiée.
 # Nous avons 40 experts qui sont tirés du dépouillement des almanachs (année N + année N+1, les alamanchs étant préparé en aout de l'année précédente) et croisé avec les données prosopographiques trouvée par juliette, ainsi que les experts nommés dans les affaires. (1 pour 1726 Montbrouard)
-# Une affaire peut
-sum(eachcol(expertisesNetwork[:, Not(:id)]))
+# Une affaire peut avoir 1 à 3 experts (pour 1726)
+nbExpertsByExpertises = sum.(eachcol(expertisesNetwork[!, Not(:id)]))
+histogram(sum.(eachcol(expertisesNetwork[!, Not(:id)])), nbins=length(unique(nbExpertsByExpertises)))
+
+nbExpertisesByExpert = sum.(eachrow(expertisesNetwork[!, Not(:id)]))
+histogram(nbExpertisesByExpert, nbins=length(unique(nbExpertisesByExpert)))
+# @todo ajouter les % et les écarts types et médiane
+# met à jour expertData, ajout de la colone nbExpertises
+expertsData[!, :nbExpertises] = nbExpertisesByExpert
+# @todo sortir un histogramme (stacqed bar chart) avec pour chaque expert le type d'affaires dont il s'occupe + nb d'affaires
+
 #########################################################
 # création du métagraphe
 #########################################################
@@ -65,7 +78,7 @@ for expert in 1:numExperts
     set_prop!(expertisesGraph, expert, :id, experts[expert])
     set_prop!(expertisesGraph, expert, :name, expertNames[expert])
     set_prop!(expertisesGraph, expert, :column, expertsColumns[expert])
-    set_prop!(expertisesGraph, expert, :cat, "Expert")
+    set_prop!(expertisesGraph, expert, :cat, "expert")
 end
 
 # ajout des métadonnées pour les nœuds expertises
@@ -112,12 +125,82 @@ for i in sort(collect(keys(expertisesGraph.vprops)))
   end
 end
 # vecteur couleurs
-color = [colorant"#FF4500", colorant"#19FFD1", colorant"#FFF819", colorant"#700DFF"]
+color = [colorant"#FF4500", colorant"#19FFD1", colorant"#700DFF", colorant"#FFF819"]
  # creation du vecteur expert/couleur(rgb)
 nodefillc=color[nodecolor]
 layout=(args...)->spring_layout(args...; C=30)
 gplot(expertisesGraph, nodefillc=nodefillc, layout=layout)
 
+
+#########################################################
+# Métagraph experts - categories
+#########################################################
+categories = names(select(categoriesNetwork, Not([:id])))
+#nb de catégories
+numCategories = length(categories)
+# création du Graph
+categoriesGraph = MetaGraph(SimpleGraph())
+
+# Création des nœuds
+add_vertices!(categoriesGraph, (numExperts+numCategories))
+# ajout des métadonnées pour les nœuds experts
+for expert in 1:numExperts
+    set_prop!(categoriesGraph, expert, :id, experts[expert])
+    set_prop!(categoriesGraph, expert, :name, expertNames[expert])
+    set_prop!(categoriesGraph, expert, :column, expertsColumns[expert])
+    set_prop!(categoriesGraph, expert, :cat, "expert")
+end
+
+# ajout des métadonnées pour les nœuds categories
+pos = 1
+for category in (numExperts+1):(numExperts+numCategories)
+    for i in 1:numCategories
+        set_prop!(categoriesGraph, category, :id, categories[pos])
+        set_prop!(categoriesGraph, category, :cat, "category")
+    end
+    global pos += 1
+end
+
+# ajout des edges
+col = 1
+for column in categories
+    pos = 1
+    for expert in categoriesNetwork[!, column]
+        if categoriesNetwork[!, column][pos] > 0
+            add_edge!(categoriesGraph, pos, col+numExperts)
+        end
+        global pos += 1
+    end
+    global col += 1
+end
+
+nodecolorCatGraph = Vector()
+#pour chaque nœuds du graph, on vérifie son type pour mettre à jour le vecteur (valeur 1 ou 2 correspondant au position du vecteur color ci-après)
+for i in sort(collect(keys(categoriesGraph.vprops)))
+  if categoriesGraph.vprops[i][:cat] == "expert"
+    if categoriesGraph.vprops[i][:column] == "architecte"
+      push!(nodecolorCatGraph, 1)
+    elseif categoriesGraph.vprops[i][:column] == "entrepreneur"
+      push!(nodecolorCatGraph, 2)
+    else
+      push!(nodecolorCatGraph, 3)
+    end
+  else
+    push!(nodecolorCatGraph, 4)
+  end
+end
+
+ # creation du vecteur expert/couleur(rgb)
+nodefillcCatGraph=color[nodecolorCatGraph]
+layout=(args...)->spring_layout(args...; C=20)
+# @todo faire un parallel coordinates networks
+gplot(categoriesGraph, nodefillc=nodefillcCatGraph, layout=layout)
+
+# il semble a priori que les architectes et les entrepreneurs participent à tous les types d'affaires
+append!(expertsData, categoriesNetwork)
+expertsData
+# @todo faire un stacqed bar histogram avec les catégories d'expertises par expert.
+describe(innerjoin(expertsData, categoriesNetwork, on=:id) ; :estimation)
 #########################################################
 # Conversion vers des données unimodales
 #########################################################
