@@ -11,6 +11,8 @@ using Statistics
 using StatsBase
 using Plots
 using UnicodePlots
+using GR
+using MultivariateStats
 
 
 #########################################################
@@ -37,10 +39,10 @@ expertisesData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/e
 # Nous avons 40 experts qui sont tirés du dépouillement des almanachs (année N + année N+1, les alamanchs étant préparé en aout de l'année précédente) et croisé avec les données prosopographiques trouvée par juliette, ainsi que les experts nommés dans les affaires. (1 pour 1726 Montbrouard)
 # Une affaire peut avoir 1 à 3 experts (pour 1726)
 nbExpertsByExpertises = sum.(eachcol(expertisesNetwork[!, Not(:id)]))
-histogram(sum.(eachcol(expertisesNetwork[!, Not(:id)])), nbins=length(unique(nbExpertsByExpertises)))
+UnicodePlots.histogram(sum.(eachcol(expertisesNetwork[!, Not(:id)])), nbins=length(unique(nbExpertsByExpertises)))
 
 nbExpertisesByExpert = sum.(eachrow(expertisesNetwork[!, Not(:id)]))
-histogram(nbExpertisesByExpert, nbins=length(unique(nbExpertisesByExpert)))
+UnicodePlots.histogram(nbExpertisesByExpert, nbins=length(unique(nbExpertisesByExpert)))
 # @todo ajouter les % et les écarts types et médiane
 # met à jour expertData, ajout de la colone nbExpertises
 expertsData[!, :nbExpertises] = nbExpertisesByExpert
@@ -103,16 +105,13 @@ for column in expertises
     end
     global col += 1
 end
-#control
-collect(edges(expertisesGraph))
-
 #########################################################
 # VIZ
 #########################################################
 nodecolor = Vector()
 #pour chaque nœuds du graph, on vérifie son type pour mettre à jour le vecteur (valeur 1 ou 2 correspondant au position du vecteur color ci-après)
 for i in sort(collect(keys(expertisesGraph.vprops)))
-  if expertisesGraph.vprops[i][:cat] == "Expert"
+  if expertisesGraph.vprops[i][:cat] == "expert"
     if expertisesGraph.vprops[i][:column] == "architecte"
       push!(nodecolor, 1)
     elseif expertisesGraph.vprops[i][:column] == "entrepreneur"
@@ -197,9 +196,50 @@ layout=(args...)->spring_layout(args...; C=20)
 gplot(categoriesGraph, nodefillc=nodefillcCatGraph, layout=layout)
 
 # il semble a priori que les architectes et les entrepreneurs participent à tous les types d'affaires
-append!(expertsData, categoriesNetwork)
-expertsData
-# @todo faire un stacqed bar histogram avec les catégories d'expertises par expert.
+expertsData = innerjoin(expertsData, categoriesNetwork, on=:id)
+# afficher les statistiques de base sur la répartiton des affaires.
+categoriesStats = describe(select(expertsData, :nbExpertises, :estimation, :assessment, :settlement, :acceptation, :registration), :mean, :min, :median, :max, :std)
+# la médianne est très inférieure à la moyenne, certains experts monopolisent de nombreuses expertises. L’écart type est particulièrement élevé sur le nombre d’affaires.
+expertsData[!, :nbExpertises]
+transform!(
+    expertsData,
+    :nbExpertises => (x -> x / sum(x)) => :percent
+)
+
+# Contrôle : afficher Loir
+# select(filter(x -> occursin("Loir", x.name), expertsData), :id, :name, :percent)
+
+transform!(
+    expertsData,
+    AsTable([:estimation, :nbExpertises]) => ByRow(x -> x.estimation / x.nbExpertises) => :estimationpcent,
+    AsTable([:assessment, :nbExpertises]) => ByRow(x -> x.assessment / x.nbExpertises) => :assessmentpcent,
+    AsTable([:acceptation, :nbExpertises]) => ByRow(x -> x.acceptation / x.nbExpertises) => :acceptationpcent,
+    AsTable([:settlement, :nbExpertises]) => ByRow(x -> x.settlement / x.nbExpertises) => :settlementpcent,
+    AsTable([:registration, :nbExpertises]) => ByRow(x -> x.registration / x.nbExpertises) => :registrationpcent
+)
+
+select(expertsData, :surname, :nbExpertises, :estimationpcent, :assessmentpcent, :acceptationpcent, :settlementpcent, :registrationpcent )
+
+CSV.write("acp.csv", select(expertsData, :surname, :estimation, :assessment, :acceptation, :settlement, :registration))
+
+x = select(expertsData, :id, :estimation, :assessment, :acceptation, :settlement, :registration))
+
+# ne fonctionne pas
+x = parse.(Float64, x[:, 2:5])
+
+Xtr = convert(Array,Array(x[1:2:end,2:5]))'
+Xtr_labels = convert(Array,Array(x[1:2:end, 1]))
+Xte = convert(Array, Array(x[2:2:end,2:5]))'
+Xte_labels = convert(Array,Array(x[2:2:end, 1]))
+
+M = fit(PCA, Xtr; maxoutdim=3)
+
+# erreur sur le type
+Yte = MultivariateStats.transform(M, Xte)
+
+Yte = MultivariateStats.transform(M, Xte)
+
+# @todo faire un stacked bar histogram avec les catégories d'expertises par expert.
 describe(innerjoin(expertsData, categoriesNetwork, on=:id) ; :estimation)
 #########################################################
 # Conversion vers des données unimodales
