@@ -130,7 +130,6 @@ nodefillc=color[nodecolor]
 layout=(args...)->spring_layout(args...; C=30)
 gplot(expertisesGraph, nodefillc=nodefillc, layout=layout)
 
-
 #########################################################
 # Métagraph experts - categories
 #########################################################
@@ -220,24 +219,40 @@ transform!(
 
 select(expertsData, :surname, :nbExpertises, :estimationpcent, :assessmentpcent, :acceptationpcent, :settlementpcent, :registrationpcent )
 
-CSV.write("acp.csv", select(expertsData, :surname, :estimation, :assessment, :acceptation, :settlement, :registration))
+## Analyse factorielle
+# Cibois, Philippe. s. d. « Principe de l’analyse factorielle ». https://cibois.pagesperso-orange.fr/PrincipeAnalyseFactorielle.pdf.
+# >L’analyse  factorielle  est  une  technique  statistique  aujourd’hui  surtout  utilisée pour  dépouiller  des  enquêtes :  elle  permet,  quand  on  dispose  d’une  population d’individus pour lesquelles on possède de nombreux renseignements concernant les opinions,  les  pratiques  et  le  statut  (sexe,  âge,  etc.),  d’en  donner  une  représentation géométrique1, c'est-à-dire en utilisant un graphique qui permet de voir les rapprochements et les oppositions entre les caractéristiques des individus.
+# analyse en composantes principales (ACP), et analyse factorielle des correspondances (AFC)
 
-x = select(expertsData, :id, :estimation, :assessment, :acceptation, :settlement, :registration))
+# Analyse des composantes principales
+x = select(expertsData, :id, :estimation, :assessment, :acceptation, :settlement, :registration)
 
 # ne fonctionne pas
-x = parse.(Float64, x[:, 2:5])
+# x = parse.(Float64, x[:, 2:5])
 
-Xtr = convert(Array,Array(x[1:2:end,2:5]))'
+# split half to training set
+Xtr = convert(Array,Array{Float64}(x[1:2:end,2:5]))'
 Xtr_labels = convert(Array,Array(x[1:2:end, 1]))
-Xte = convert(Array, Array(x[2:2:end,2:5]))'
+# split other half to testing set
+Xte = convert(Array, Array{Float64}(x[2:2:end,2:5]))'
 Xte_labels = convert(Array,Array(x[2:2:end, 1]))
-
+# suppose Xtr and Xte are training and testing data matrix,
+# with each observation in a column
+# train a PCA model, allowing up to 3 dimensions
 M = fit(PCA, Xtr; maxoutdim=3)
-
-# erreur sur le type
+# apply PCA model to testing set
 Yte = MultivariateStats.transform(M, Xte)
+# reconstruct testing observations (approximately)
+Xr = reconstruct(M, Yte)
 
-Yte = MultivariateStats.transform(M, Xte)
+# Factor analysis
+# https://multivariatestatsjl.readthedocs.io/en/stable/fa.html
+
+Mfact = fit(FactorAnalysis, Xtr; maxoutdim=4)
+
+YteFact = MultivariateStats.transform(Mfact, Xte)
+
+XrFact = reconstruct(Mfact, YteFact)
 
 # @todo faire un stacked bar histogram avec les catégories d'expertises par expert.
 describe(innerjoin(expertsData, categoriesNetwork, on=:id) ; :estimation)
