@@ -26,12 +26,17 @@ expertisesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/
 # dataframe experts par categories
 categoriesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/$year/categories").body, header=1) |> DataFrame
 
+println(categoriesNetwork)
+println(expertsData)
 # données sur les experts
 # @ todo compléter dates avec les almanachs
 expertsData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/experts").body, header=1) |> DataFrame
 
 # données sur les expertises
 expertisesData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/expertises").body, header=1) |> DataFrame
+
+# données sur les catégories
+categoriesData = DataFrame(id=names(categoriesNetwork[!, Not(:id)]), name=["Estimer la valeur des biens", "Décrire et évaluer les travaux à venir", "Recevoir et évaluer le travail réalisé", "Départager", "Enregistrer"])
 
 # @todo mettre en évidence la répartition inégale des affaires entre experts
 
@@ -108,6 +113,13 @@ end
 #########################################################
 # VIZ
 #########################################################
+
+# couleur des labels
+nodelabelc = colorant"white"
+
+# vecteur couleurs
+color = [colorant"#FF4500", colorant"#19FFD1", colorant"#700DFF", colorant"#FFF819"]
+
 nodecolor = Vector()
 #pour chaque nœuds du graph, on vérifie son type pour mettre à jour le vecteur (valeur 1 ou 2 correspondant au position du vecteur color ci-après)
 for i in sort(collect(keys(expertisesGraph.vprops)))
@@ -123,8 +135,6 @@ for i in sort(collect(keys(expertisesGraph.vprops)))
     push!(nodecolor, 4)
   end
 end
-# vecteur couleurs
-color = [colorant"#FF4500", colorant"#19FFD1", colorant"#700DFF", colorant"#FFF819"]
  # creation du vecteur expert/couleur(rgb)
 nodefillc=color[nodecolor]
 layout=(args...)->spring_layout(args...; C=30)
@@ -134,6 +144,7 @@ gplot(expertisesGraph, nodefillc=nodefillc, layout=layout)
 # Métagraph experts - categories
 #########################################################
 categories = names(select(categoriesNetwork, Not([:id])))
+categoriesNames = categoriesData[!, :name]
 #nb de catégories
 numCategories = length(categories)
 # création du Graph
@@ -154,6 +165,7 @@ pos = 1
 for category in (numExperts+1):(numExperts+numCategories)
     for i in 1:numCategories
         set_prop!(categoriesGraph, category, :id, categories[pos])
+        set_prop!(categoriesGraph, category, :name, categoriesNames[pos])
         set_prop!(categoriesGraph, category, :cat, "category")
     end
     global pos += 1
@@ -188,11 +200,16 @@ for i in sort(collect(keys(categoriesGraph.vprops)))
   end
 end
 
+nodelabelCatGraph = Vector()
+for name in 1:(numExperts+numCategories)
+    push!(nodelabelCatGraph, categoriesGraph.vprops[name][:name])
+end
+
  # creation du vecteur expert/couleur(rgb)
 nodefillcCatGraph=color[nodecolorCatGraph]
 layout=(args...)->spring_layout(args...; C=20)
 # @todo faire un parallel coordinates networks
-gplot(categoriesGraph, nodefillc=nodefillcCatGraph, layout=layout)
+gplot(categoriesGraph, nodelabel=nodelabelCatGraph, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodefillc=nodefillcCatGraph, layout=layout)
 
 # il semble a priori que les architectes et les entrepreneurs participent à tous les types d'affaires
 expertsData = innerjoin(expertsData, categoriesNetwork, on=:id)
@@ -218,7 +235,8 @@ transform!(
 )
 
 select(expertsData, :surname, :nbExpertises, :estimationpcent, :assessmentpcent, :acceptationpcent, :settlementpcent, :registrationpcent )
-
+# @todo faire un stacked bar histogram avec les catégories d'expertises par expert.
+describe(innerjoin(expertsData, categoriesNetwork, on=:id) ; :estimation)
 ## Analyse factorielle
 # Cibois, Philippe. s. d. « Principe de l’analyse factorielle ». https://cibois.pagesperso-orange.fr/PrincipeAnalyseFactorielle.pdf.
 # >L’analyse  factorielle  est  une  technique  statistique  aujourd’hui  surtout  utilisée pour  dépouiller  des  enquêtes :  elle  permet,  quand  on  dispose  d’une  population d’individus pour lesquelles on possède de nombreux renseignements concernant les opinions,  les  pratiques  et  le  statut  (sexe,  âge,  etc.),  d’en  donner  une  représentation géométrique1, c'est-à-dire en utilisant un graphique qui permet de voir les rapprochements et les oppositions entre les caractéristiques des individus.
@@ -255,6 +273,57 @@ YteFact = MultivariateStats.transform(Mfact, Xte)
 
 XrFact = reconstruct(Mfact, YteFact)
 
+# Graph projeté des experts par catégories
+
+expertsByCategories = Matrix(select(categoriesNetwork, Not(:id)))
+
+expertsByCategoriesNormP = [sum(mapslices(minimum,[i j],dims=2)) for i in eachrow(transpose(expertsByCategories)),j in eachcol(expertsByCategories)]
+
+expertsByCategoriesNormT = [sum(mapslices(minimum,[i j],dims=2)) for i in eachrow(expertsByCategories),j in eachcol(transpose(expertsByCategories))]
+expertsByCategoriesNormPGraph = Graph(expertsByCategoriesNormP)
+
+# pondération des edges avec les valeurs normalisées
+edgesCollectionCat = collect(edges(expertsByCategoriesNormPGraph))
+
+edgelinewidthCat = Vector()
+for i in edgesCollectionCat
+    edgesString = split(string(i), " ")
+    from = parse(Int64, edgesString[2])
+    to = parse(Int64, edgesString[4])
+    push!(edgelinewidthCat, expertsByCategoriesNormP[from, to])
+end
+
+gplot(expertsByCategoriesNormPGraph, edgelinewidth=edgelinewidthCat, nodelabel=categoriesNames, nodelabelc=nodelabelc, nodelabeldist=1.5, nodelabelangleoffset=π/2)
+# trivial car le graph est complet. Certains experts réalisant des affaires de toutes les catégories
+# resultMatrix[row][column] = sum(A[row][every column x]*B[row x][column])
+# The sequence of operations should do the following:
+# resultMatrix[row][column] = sum(min(A[row][every column x],B[row x][column]))
+# Where B is the transpose of A.
+
+expertsByCategoriesNormTGraph = Graph(expertsByCategoriesNormT)
+
+# pondération des edges avec les valeurs normalisées
+edgesCollectionCat_T = collect(edges(expertsByCategoriesNormTGraph))
+
+edgelinewidthCat_T = Vector()
+for i in edgesCollectionCat_T
+    edgesString = split(string(i), " ")
+    from = parse(Int64, edgesString[2])
+    to = parse(Int64, edgesString[4])
+    push!(edgelinewidthCat_T, expertsByCategoriesNormT[from, to])
+end
+
+nlist = Vector{Vector{Int}}(undef, 2) # two shells
+nlist[1] = 1:5 # first shell
+nlist[2] = 6:nv(expertsByCategoriesNormTGraph) # second shell
+locs_x, locs_y = shell_layout(expertsByCategoriesNormTGraph, nlist)
+gplot(g, locs_x, locs_y, nodelabel=nodelabel)
+
+gplot(expertsByCategoriesNormTGraph, edgelinewidth=edgelinewidthCat_T, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=1.5, nodelabelangleoffset=π/2, layout=(args...)->spring_layout(args...; C=30), linetype="curve")
+
+# discuter des répartition inégale des experts selon les catégories d'affaires. S'il y a des liens plus fort c'est certainement dû au nombre d'affaires (même ajusté ça persiste). Le graphe des experts par catégories montre la proéminence de certains types d'affaires, mais en revanche le graphe projeté par experts ne permet pas à première vue de déterminer des communautés d'experts ni un mécanisme d'attribution des types d'expertise.
+# pas de structuration de la communauté à partir des catégories. Il faudrait peut être faire des analyses de bi-cliques ou de sous-cliques (même si vraisemblablement il n'y en a pas). Mais dans le fond, c'est déjà un résultat.
+
 # @todo faire un stacked bar histogram avec les catégories d'expertises par expert.
 describe(innerjoin(expertsData, categoriesNetwork, on=:id) ; :estimation)
 
@@ -263,39 +332,68 @@ describe(innerjoin(expertsData, categoriesNetwork, on=:id) ; :estimation)
 #########################################################
 # Matrice bimodale experts par expertises
 expertisesMatrix = Matrix(adjacency_matrix(expertisesGraph))
-m = expertisesMatrix[1:numExperts, (numExperts+1):numNodes]
+# matrice d'affiliation bimodale à partir du graph
+expertisesAfM = expertisesMatrix[1:numExperts, (numExperts+1):numNodes]
+
 
 # certains experts participent à plus d’affaires, Borgatti suggère de normaliser les valeurs en utilisant Bonacich
 
 # dans m, diviser les valeurs de la matrice d’origine par la √ de la somme de la colonne d’origine
-colsum = sum(m, dims=2)
+colsum = sum(expertisesAfM, dims=2)
 
 ponderation = vec(broadcast(√, colsum))
 
 ponderate(x) = x ./ ponderation
 
 # calculer la matrice normalisée en supprimant les valeurs NaN
-normm = replace!(mapslices(x -> ponderate(x), m, dims=1), NaN => 0)
+normExpertisesAfM = replace!(mapslices(x -> ponderate(x), expertisesAfM, dims=1), NaN => 0)
 
 # matrice normalisée projetée
-normmp = transpose(normm) * normm
+normExpertisesAfM_p = transpose(normExpertisesAfM) * normExpertisesAfM
 
 # matrice normalisée transposée
 # Cette valeur est interprétée comme un indice de la force de la proximité sociale entre deux experts.
 # Pour l'interprétation, voir Bogartti 1997 p. 245-246
-normmt = normm * transpose(normm)
 
-#graphe de la matrice normalisée transposée
-gnormmt = MetaGraph(SimpleGraph(normmt))
+
+# collaboration avec des architectes, mis à jour avec la boucle ci-dessous
+collabArchi = Int.(vec(zeros(40, 1)))
+# collaboration avec des entrepreneurs, mis à jour avec la boucle ci-dessous
+collabEnt = Int.(vec(zeros(40, 1)))
+# collaboration avec des transfuges (ou inconnus), mis à jour avec la boucle ci-dessous
+collabAutres = Int.(vec(zeros(40, 1)))
+
+for expert in 1:numExperts
+    for collab in 1:numExperts
+        if normExpertisesAfM_t[expert, collab] > 0
+            if expertsData[collab, :column] == "entrepreneur"
+                collabEnt[expert] += 1
+            elseif expertsData[collab, :column] == "architecte"
+                collabArchi[expert] += 1
+            else
+                collabAutres[expert] += 1
+            end
+        end
+    end
+end
 
 [rem_edge!(gnormmt, i, i) for i in 1:40]
 gnormmt
+
+normExpertisesAfM_t[1, 5]
+
+categoriesNetwork[2, :estimation]
+normExpertisesAfM_t = normExpertisesAfM * transpose(normExpertisesAfM)
+
+#graphe de la matrice normalisée transposée
+g_normExpertisesAfM_t = MetaGraph(SimpleGraph(normExpertisesAfM_t))
+
 #########################################################
 # VIZ
 #########################################################
 
 # pondération des edges avec les valeurs normalisées
-edgesCollection = collect(edges(gnormmt))
+edgesCollection = collect(edges(g_normExpertisesAfM_t))
 
 
 edgelinewidth = Vector()
@@ -303,11 +401,11 @@ for i in edgesCollection
     edgesString = split(string(i), " ")
     from = parse(Int64, edgesString[2])
     to = parse(Int64, edgesString[4])
-    push!(edgelinewidth, normmt[from, to]^3)
+    push!(edgelinewidth, normExpertisesAfM_t[from, to]^3)
 end
 edgelinewidth
 # pondération de la taille de nœuds avec la sommes des valeurs normalisées pour chaque experts
-nodesizeA = vec(sum(normmt, dims=1))
+nodesizeA = vec(sum(normExpertisesAfM_t, dims=1))
 nodesize = [log(i) for i in nodesizeA]
 
 
@@ -316,14 +414,11 @@ nodesize = [log(i) for i in nodesizeA]
 expertColor = nodecolor[1:numExperts]
 expertfillc=color[expertColor]
 
-# couleur des labels experts
-nodelabelc = colorant"white"
-
 # paramètres du layout
 expertLayout=(args...)->spring_layout(args...; C=20)
 
 
-gplot(gnormmt, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=expertLayout, edgelinewidth=edgelinewidth)
+gplot(g_normExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=expertLayout, edgelinewidth=edgelinewidth)
 
 #########################################################
 # Metrics
