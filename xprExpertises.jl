@@ -335,7 +335,7 @@ gplot(gnormmt, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, 
 # si densité = 1 tous les nœuds sont connectés entre eux, si 0 aucune connection.
 bigraphDensity = ne(expertisesGraph)/(numExperts*numExpertises)
 
-# travaillent avec peu de gens 
+# travaillent avec peu de gens
 gnormmtDensity = LightGraphs.density(gnormmt)
 
 # Centralité de degré
