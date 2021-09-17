@@ -239,11 +239,12 @@ Xte_labels = convert(Array,Array(x[2:2:end, 1]))
 # suppose Xtr and Xte are training and testing data matrix,
 # with each observation in a column
 # train a PCA model, allowing up to 3 dimensions
-M = fit(PCA, Xtr; maxoutdim=3)
+M = fit(PCA, Xtr; maxoutdim=2)
 # apply PCA model to testing set
 Yte = MultivariateStats.transform(M, Xte)
 # reconstruct testing observations (approximately)
 Xr = reconstruct(M, Yte)
+
 
 # Factor analysis
 # https://multivariatestatsjl.readthedocs.io/en/stable/fa.html
@@ -256,6 +257,7 @@ XrFact = reconstruct(Mfact, YteFact)
 
 # @todo faire un stacked bar histogram avec les catégories d'expertises par expert.
 describe(innerjoin(expertsData, categoriesNetwork, on=:id) ; :estimation)
+
 #########################################################
 # Conversion vers des données unimodales
 #########################################################
@@ -286,7 +288,8 @@ normmt = normm * transpose(normm)
 #graphe de la matrice normalisée transposée
 gnormmt = MetaGraph(SimpleGraph(normmt))
 
-
+[rem_edge!(gnormmt, i, i) for i in 1:40]
+gnormmt
 #########################################################
 # VIZ
 #########################################################
@@ -294,15 +297,20 @@ gnormmt = MetaGraph(SimpleGraph(normmt))
 # pondération des edges avec les valeurs normalisées
 edgesCollection = collect(edges(gnormmt))
 
+
 edgelinewidth = Vector()
 for i in edgesCollection
     edgesString = split(string(i), " ")
     from = parse(Int64, edgesString[2])
     to = parse(Int64, edgesString[4])
-    push!(edgelinewidth, normmt[from, to])
+    push!(edgelinewidth, normmt[from, to]^3)
 end
+edgelinewidth
 # pondération de la taille de nœuds avec la sommes des valeurs normalisées pour chaque experts
-nodesize = vec(sum(normmt, dims=1))
+nodesizeA = vec(sum(normmt, dims=1))
+nodesize = [log(i) for i in nodesizeA]
+
+
 
 # attribution d'un couleur pour les experts
 expertColor = nodecolor[1:numExperts]
@@ -326,6 +334,9 @@ gplot(gnormmt, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, 
 # La densité d'un réseau bipartite nb edges/(nb experts * nb affaires) puisque les nœuds d'un mode ne peuvent pas avoir de relations entre eux.
 # si densité = 1 tous les nœuds sont connectés entre eux, si 0 aucune connection.
 bigraphDensity = ne(expertisesGraph)/(numExperts*numExpertises)
+
+# travaillent avec peu de gens 
+gnormmtDensity = LightGraphs.density(gnormmt)
 
 # Centralité de degré
 # C'est la somme des edges d'un nœud
