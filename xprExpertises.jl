@@ -39,6 +39,7 @@ expertisesData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/e
 # données sur les catégories
 categoriesData = DataFrame(id=names(categoriesNetwork[!, Not(:id)]), name=["Estimer la valeur des biens", "Décrire et évaluer les travaux à venir", "Recevoir et évaluer le travail réalisé", "Départager", "Enregistrer"])
 
+
 # @todo mettre en évidence la répartition inégale des affaires entre experts
 
 # Les données regroupe 468 d'affaires dépouillées qui représentent un nombre moyen d'affaires dans le dépouillement pour le début de la période étudiée.
@@ -49,6 +50,15 @@ UnicodePlots.histogram(sum.(eachcol(expertisesNetwork[!, Not(:id)])), nbins=leng
 
 nbExpertisesByExpert = sum.(eachrow(expertisesNetwork[!, Not(:id)]))
 UnicodePlots.histogram(nbExpertisesByExpert, nbins=length(unique(nbExpertisesByExpert)))
+
+insertcols!(expertsData, :n => nbExpertisesByExpert)
+describe(expertsData)
+archis = expertsData[expertsData[!, :column] .== "architecte", :]
+describe(archis)
+entrepreneurs = (expertsData[expertsData[!, :column] .== "entrepreneur", :])
+describe(entrepreneurs)
+
+
 # @todo ajouter les % et les écarts types et médiane
 # met à jour expertData, ajout de la colone nbExpertises
 expertsData[!, :nbExpertises] = nbExpertisesByExpert
