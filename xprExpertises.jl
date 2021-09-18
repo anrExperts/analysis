@@ -25,13 +25,9 @@ expertisesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/
 
 # dataframe experts par categories
 categoriesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/$year/categories").body, header=1) |> DataFrame
-
-println(categoriesNetwork)
-println(expertsData)
 # données sur les experts
 # @ todo compléter dates avec les almanachs
 expertsData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/experts").body, header=1) |> DataFrame
-
 # données sur les expertises
 expertisesData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/expertises").body, header=1) |> DataFrame
 
@@ -89,26 +85,25 @@ for expert in 1:numExperts
 end
 
 # ajout des métadonnées pour les nœuds expertises
-pos = 1
 for expertise in (numExperts+1):numNodes
     for i in 1:numExpertises
-        set_prop!(expertisesGraph, expertise, :id, expertises[pos])
+        set_prop!(expertisesGraph, expertise, :id, expertises[i])
         set_prop!(expertisesGraph, expertise, :cat, "expertise")
     end
-    global pos += 1
 end
 
 # ajout des edges
-col = 1
-for column in expertises
+expertises
+expertisesNetwork
+
+for column in 2:numExpertises+1
     pos = 1
     for expert in expertisesNetwork[!, column]
-        if expertisesNetwork[!, column][pos] > 0
-            add_edge!(expertisesGraph, pos, col+numExperts)
+        if Int(expertisesNetwork[!, column][pos]) > 0
+            add_edge!(expertisesGraph, pos, numExperts+column)
         end
         global pos += 1
     end
-    global col += 1
 end
 #########################################################
 # VIZ
@@ -161,27 +156,23 @@ for expert in 1:numExperts
 end
 
 # ajout des métadonnées pour les nœuds categories
-pos = 1
 for category in (numExperts+1):(numExperts+numCategories)
     for i in 1:numCategories
-        set_prop!(categoriesGraph, category, :id, categories[pos])
-        set_prop!(categoriesGraph, category, :name, categoriesNames[pos])
+        set_prop!(categoriesGraph, category, :id, categories[i])
+        set_prop!(categoriesGraph, category, :name, categoriesNames[i])
         set_prop!(categoriesGraph, category, :cat, "category")
     end
-    global pos += 1
 end
 
 # ajout des edges
-col = 1
-for column in categories
+for column in 2:numCategories+1
     pos = 1
     for expert in categoriesNetwork[!, column]
         if categoriesNetwork[!, column][pos] > 0
-            add_edge!(categoriesGraph, pos, col+numExperts)
+            add_edge!(categoriesGraph, pos, numExperts+column)
         end
         global pos += 1
     end
-    global col += 1
 end
 
 nodecolorCatGraph = Vector()
