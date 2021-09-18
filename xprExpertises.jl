@@ -10,9 +10,13 @@ using Colors
 using Statistics
 using StatsBase
 using Plots
+using StatsPlots
 using UnicodePlots
 using GR
 using MultivariateStats
+using GraphIO
+using EzXML
+using RDatasets
 
 
 #########################################################
@@ -25,9 +29,6 @@ expertisesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/
 
 # dataframe experts par categories
 categoriesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/$year/categories").body, header=1) |> DataFrame
-
-println(categoriesNetwork)
-println(expertsData)
 # données sur les experts
 # @ todo compléter dates avec les almanachs
 expertsData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/experts").body, header=1) |> DataFrame
@@ -76,7 +77,6 @@ numNodes = numExpertises + numExperts
 
 # création du Graph
 expertisesGraph = MetaGraph(SimpleGraph())
-
 # Création des nœuds
 add_vertices!(expertisesGraph, numNodes)
 
@@ -236,7 +236,7 @@ transform!(
 
 select(expertsData, :surname, :nbExpertises, :estimationpcent, :assessmentpcent, :acceptationpcent, :settlementpcent, :registrationpcent )
 # @todo faire un stacked bar histogram avec les catégories d'expertises par expert.
-describe(innerjoin(expertsData, categoriesNetwork, on=:id) ; :estimation)
+
 ## Analyse factorielle
 # Cibois, Philippe. s. d. « Principe de l’analyse factorielle ». https://cibois.pagesperso-orange.fr/PrincipeAnalyseFactorielle.pdf.
 # >L’analyse  factorielle  est  une  technique  statistique  aujourd’hui  surtout  utilisée pour  dépouiller  des  enquêtes :  elle  permet,  quand  on  dispose  d’une  population d’individus pour lesquelles on possède de nombreux renseignements concernant les opinions,  les  pratiques  et  le  statut  (sexe,  âge,  etc.),  d’en  donner  une  représentation géométrique1, c'est-à-dire en utilisant un graphique qui permet de voir les rapprochements et les oppositions entre les caractéristiques des individus.
@@ -284,7 +284,6 @@ expertsByCategoriesNormPGraph = Graph(expertsByCategoriesNormP)
 
 # pondération des edges avec les valeurs normalisées
 edgesCollectionCat = collect(edges(expertsByCategoriesNormPGraph))
-
 edgelinewidthCat = Vector()
 for i in edgesCollectionCat
     edgesString = split(string(i), " ")
@@ -292,6 +291,7 @@ for i in edgesCollectionCat
     to = parse(Int64, edgesString[4])
     push!(edgelinewidthCat, expertsByCategoriesNormP[from, to])
 end
+[rem_edge!(expertsByCategoriesNormPGraph, i, i) for i in 1:numCategories]
 
 gplot(expertsByCategoriesNormPGraph, edgelinewidth=edgelinewidthCat, nodelabel=categoriesNames, nodelabelc=nodelabelc, nodelabeldist=1.5, nodelabelangleoffset=π/2)
 # trivial car le graph est complet. Certains experts réalisant des affaires de toutes les catégories
@@ -301,10 +301,9 @@ gplot(expertsByCategoriesNormPGraph, edgelinewidth=edgelinewidthCat, nodelabel=c
 # Where B is the transpose of A.
 
 expertsByCategoriesNormTGraph = Graph(expertsByCategoriesNormT)
-
+[rem_edge!(expertsByCategoriesNormTGraph, i, i) for i in 1:numExperts]
 # pondération des edges avec les valeurs normalisées
 edgesCollectionCat_T = collect(edges(expertsByCategoriesNormTGraph))
-
 edgelinewidthCat_T = Vector()
 for i in edgesCollectionCat_T
     edgesString = split(string(i), " ")
@@ -312,20 +311,17 @@ for i in edgesCollectionCat_T
     to = parse(Int64, edgesString[4])
     push!(edgelinewidthCat_T, expertsByCategoriesNormT[from, to])
 end
-
 nlist = Vector{Vector{Int}}(undef, 2) # two shells
 nlist[1] = 1:5 # first shell
 nlist[2] = 6:nv(expertsByCategoriesNormTGraph) # second shell
 locs_x, locs_y = shell_layout(expertsByCategoriesNormTGraph, nlist)
-gplot(g, locs_x, locs_y, nodelabel=nodelabel)
 
-gplot(expertsByCategoriesNormTGraph, edgelinewidth=edgelinewidthCat_T, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=1.5, nodelabelangleoffset=π/2, layout=(args...)->spring_layout(args...; C=30), linetype="curve")
+gplot(expertsByCategoriesNormTGraph, edgelinewidth=edgelinewidthCat_T, nodelabel=expertNames, nodelabelc=nodelabelc, nodefillc=nodefillc[1:40], nodelabeldist=1.5, nodelabelangleoffset=π/2, layout=circular_layout, linetype="curve")
 
 # discuter des répartition inégale des experts selon les catégories d'affaires. S'il y a des liens plus fort c'est certainement dû au nombre d'affaires (même ajusté ça persiste). Le graphe des experts par catégories montre la proéminence de certains types d'affaires, mais en revanche le graphe projeté par experts ne permet pas à première vue de déterminer des communautés d'experts ni un mécanisme d'attribution des types d'expertise.
 # pas de structuration de la communauté à partir des catégories. Il faudrait peut être faire des analyses de bi-cliques ou de sous-cliques (même si vraisemblablement il n'y en a pas). Mais dans le fond, c'est déjà un résultat.
 
 # @todo faire un stacked bar histogram avec les catégories d'expertises par expert.
-describe(innerjoin(expertsData, categoriesNetwork, on=:id) ; :estimation)
 
 #########################################################
 # Conversion vers des données unimodales
@@ -335,6 +331,30 @@ expertisesMatrix = Matrix(adjacency_matrix(expertisesGraph))
 # matrice d'affiliation bimodale à partir du graph
 expertisesAfM = expertisesMatrix[1:numExperts, (numExperts+1):numNodes]
 
+expertisesAfM_t = expertisesAfM * transpose(expertisesAfM)
+
+gExpertisesAfM_t = Graph(expertisesAfM_t)
+
+nodesize = vec(sum(expertisesAfM_t, dims=1))
+# to keep or not to keep ?
+nodesize = [log(i) for i in nodesize]
+
+[rem_edge!(gExpertisesAfM_t, i, i) for i in 1:40]
+
+edgelinewidth = Vector()
+for i in collect(edges(gExpertisesAfM_t))
+    edgesString = split(string(i), " ")
+    from = parse(Int64, edgesString[2])
+    to = parse(Int64, edgesString[4])
+    push!(edgelinewidth, expertisesAfM_t[from, to])
+end
+edgelinewidth
+# attribution d'un couleur pour les experts
+expertColor = nodecolor[1:numExperts]
+expertfillc=color[expertColor]
+# paramètres du layout
+expertLayout=(args...)->spring_layout(args...; C=20)
+gplot(gExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=expertLayout, edgelinewidth=edgelinewidth)
 
 # certains experts participent à plus d’affaires, Borgatti suggère de normaliser les valeurs en utilisant Bonacich
 
@@ -352,9 +372,10 @@ normExpertisesAfM = replace!(mapslices(x -> ponderate(x), expertisesAfM, dims=1)
 normExpertisesAfM_p = transpose(normExpertisesAfM) * normExpertisesAfM
 
 # matrice normalisée transposée
+normExpertisesAfM_t = normExpertisesAfM * transpose(normExpertisesAfM)
+
 # Cette valeur est interprétée comme un indice de la force de la proximité sociale entre deux experts.
 # Pour l'interprétation, voir Bogartti 1997 p. 245-246
-
 
 # collaboration avec des architectes, mis à jour avec la boucle ci-dessous
 collabArchi = Int.(vec(zeros(40, 1)))
@@ -377,16 +398,10 @@ for expert in 1:numExperts
     end
 end
 
-[rem_edge!(gnormmt, i, i) for i in 1:40]
-gnormmt
-
-normExpertisesAfM_t[1, 5]
-
-categoriesNetwork[2, :estimation]
-normExpertisesAfM_t = normExpertisesAfM * transpose(normExpertisesAfM)
-
 #graphe de la matrice normalisée transposée
 g_normExpertisesAfM_t = MetaGraph(SimpleGraph(normExpertisesAfM_t))
+
+[rem_edge!(g_normExpertisesAfM_t, i, i) for i in 1:40]
 
 #########################################################
 # VIZ
@@ -408,15 +423,12 @@ edgelinewidth
 nodesizeA = vec(sum(normExpertisesAfM_t, dims=1))
 nodesize = [log(i) for i in nodesizeA]
 
-
-
 # attribution d'un couleur pour les experts
 expertColor = nodecolor[1:numExperts]
 expertfillc=color[expertColor]
 
 # paramètres du layout
 expertLayout=(args...)->spring_layout(args...; C=20)
-
 
 gplot(g_normExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=expertLayout, edgelinewidth=edgelinewidth)
 
@@ -431,7 +443,8 @@ gplot(g_normExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodel
 bigraphDensity = ne(expertisesGraph)/(numExperts*numExpertises)
 
 # travaillent avec peu de gens
-gnormmtDensity = LightGraphs.density(gnormmt)
+g_ExpertisesAfM_tDensity = LightGraphs.density(gExpertisesAfM_t)
+g_normExpertisesAfM_tDensity = LightGraphs.density(g_normExpertisesAfM_t)
 
 # Centralité de degré
 # C'est la somme des edges d'un nœud
@@ -451,6 +464,7 @@ for i in 1:numNodes
         push!(bigraphNormDeg, value)
     end
 end
+bigraphNormDeg
 
 # centralité de proximité
 # Indique à quel point un nœud est proche de tous les autres nœuds du réseau.
@@ -460,30 +474,60 @@ end
 # la centralité de proximité pour D = distance la plus courte à chaque nœuds (3+2+1+1+2)/(nb nœuds-1) dans un graphe normal
 # plus la valeur est faible plus le nœud est central
 
-# normalisation du bigraph (normalisation faite plus haut)
-bigraphNorm = normm
-
 #degree(gnormmp)
-betweennessCentrality = betweenness_centrality(gnormmt)
-closenessCentrality = closeness_centrality(gnormmt)
-degreeCentrality = degree_centrality(gnormmt)
-eigenvectorCentrality = eigenvector_centrality(gnormmt)
-katzCentrality = katz_centrality(gnormmt)
+betweennessCentrality = betweenness_centrality(g_normExpertisesAfM_t)
+closenessCentrality = closeness_centrality(g_normExpertisesAfM_t)
+degreeCentrality = degree_centrality(g_normExpertisesAfM_t)
+eigenvectorCentrality = eigenvector_centrality(g_normExpertisesAfM_t)
+katzCentrality = katz_centrality(g_normExpertisesAfM_t)
 #pagerank = pagerank(gnormmp)
-radialityCentrality = radiality_centrality(gnormmt)
-stressCentrality = stress_centrality(gnormmt)
+radialityCentrality = radiality_centrality(g_normExpertisesAfM_t)
+stressCentrality = stress_centrality(g_normExpertisesAfM_t)
 
-
+rowsum = sum(expertisesGraph, 2)
 
 bigraphDegreeCentrality = rowsum[1:numExperts]/numExpertises
 
-metrics = DataFrame(expert = expertNames, colonne=expertsColumns, normDeg=bigraphNormDeg[1:40],  bigraphDegreeCentrality=bigraphDegreeCentrality, degree=degree(gnormmt), betweennessCentrality=betweenness_centrality(gnormmt), closenessCentrality=closenessCentrality, degreeCentrality=degreeCentrality, eigenvectorCentrality=eigenvectorCentrality, katzCentrality=katzCentrality, pagerank=pagerank(gnormmt), radialityCentrality=radialityCentrality, stressCentrality=stressCentrality)
+# closenessCentrality normalisée
+# @bug pb avec valeur 13 et 34
+v = Vector()
+for i in 1:numExperts
+    push!(v, (numExpertises + 2numExperts - 2) / sum(replace(gdistances(expertisesGraph, i), 9223372036854775807 => 0)))
+end
+
+metrics = DataFrame(expert = expertNames, colonne=expertsColumns, normDeg=bigraphNormDeg[1:40],  bigraphDegreeCentrality=bigraphDegreeCentrality, degree=degree(g_normExpertisesAfM_t), betweennessCentrality=betweenness_centrality(g_normExpertisesAfM_t), closenessCentrality=closenessCentrality, degreeCentrality=degreeCentrality, eigenvectorCentrality=eigenvectorCentrality, katzCentrality=katzCentrality, pagerank=pagerank(g_normExpertisesAfM_t), radialityCentrality=radialityCentrality, stressCentrality=stressCentrality, collabArchi=collabArchi, collabEnt=collabEnt, collabAutres=collabAutres)
+collabArchi
+
+metrics
+
 metricsArchi = metrics[metrics[!, :colonne] .== "architecte", :]
+metricsEnt = metrics[metrics[!, :colonne] .== "entrepreneur", :]
+# écrire le fichier
+# CSV.write("file.csv", metrics)
+
+sort(vec(Matrix(select(metrics, :normDeg))))
+
+Plots.scatter()
+
+sort!(metrics, [:eigenvectorCentrality])
+Plots.scatter(
+    metrics[!, :eigenvectorCentrality],
+    color = color[1],
+    label = "eigenvCent.",
+    legend = :topleft,
+    title = "Mesures de centralité dans le réseau bipartite",
+    xtickfont = font(5, "Arial")
+    )
+
+scatter!(metrics[!, :bigraphDegreeCentrality], label = "degreeCent.", color = color[2])
+scatter!(metrics[!, :closenessCentrality], label = "closCent.", color = color[3])
+scatter!(metrics[!, :betweennessCentrality], label = "btwCent.", color = color[4])
+
+scatter!(xticks=(1:size(metrics,1), metrics[!, :expert]), xrotation = 45, xtickfont = font(7, "Arial"))
 
 # community detection
-label_propagation(gnormmt)
-maximal_cliques(gnormmt)
-
+label_propagation(g_normExpertisesAfM_t)
+println(maximal_cliques(g_normExpertisesAfM_t))
 
 nlist = Vector{Vector{Int}}(undef, 2) # two shells
 nlist[1] = 1:46 # first shell
