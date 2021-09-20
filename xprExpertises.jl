@@ -16,7 +16,7 @@ using GR
 using MultivariateStats
 using GraphIO
 using EzXML
-using RDatasets
+using Statistics
 
 
 #########################################################
@@ -58,10 +58,11 @@ describe(archis)
 entrepreneurs = (expertsData[expertsData[!, :column] .== "entrepreneur", :])
 describe(entrepreneurs)
 
-
 # @todo ajouter les % et les écarts types et médiane
+
 # met à jour expertData, ajout de la colone nbExpertises
 expertsData[!, :nbExpertises] = nbExpertisesByExpert
+
 # @todo sortir un histogramme (stacqed bar chart) avec pour chaque expert le type d'affaires dont il s'occupe + nb d'affaires
 
 #########################################################
@@ -96,6 +97,7 @@ for expert in 1:numExperts
     set_prop!(expertisesGraph, expert, :name, expertNames[expert])
     set_prop!(expertisesGraph, expert, :column, expertsColumns[expert])
     set_prop!(expertisesGraph, expert, :cat, "expert")
+    set_prop!(expertisesGraph, expert, :degree, sum(expertisesNetwork[expert, Not(:id)]))
 end
 
 # ajout des métadonnées pour les nœuds expertises
@@ -120,6 +122,7 @@ for column in expertises
     end
     global col += 1
 end
+edges(expertisesGraph)
 #########################################################
 # VIZ
 #########################################################
@@ -149,6 +152,27 @@ end
 nodefillc=color[nodecolor]
 layout=(args...)->spring_layout(args...; C=30)
 gplot(expertisesGraph, nodefillc=nodefillc, layout=layout)
+
+expertisesGraph.vprops[1]
+
+expertsDegree = DataFrame(name = [get_prop(expertisesGraph, i, (:name)) for i in 1:40], degree = [get_prop(expertisesGraph, i, (:degree)) for i in 1:40])
+sort!(expertsDegree, [:degree])
+
+Plots.histogram()
+bar!(expertsDegree.degree)
+scatter!(xticks=(1:size(expertsDegree,1), expertsDegree[!, :name]), xrotation = 45, xtickfont = font(7, "Arial"))
+
+k = keys(degree_histogram(expertisesGraph))
+v = values(degree_histogram(expertisesGraph))
+
+degree_histogram(expertisesGraph)
+
+Plots.histogram(degree_histogram(expertisesGraph).vals, degree_histogram(expertisesGraph).keys)
+
+degreeDistribution = unique(expertsDegree.degree)
+
+expertsDegree.degree
+Plots.histogram(expertsDegree.degree, bins=:scott, weights=repeat(1:5, outer=8))
 
 #########################################################
 # Métagraph experts - categories
@@ -336,21 +360,23 @@ gplot(expertsByCategoriesNormTGraph, edgelinewidth=edgelinewidthCat_T, nodelabel
 #########################################################
 # Conversion vers des données unimodales
 #########################################################
+
 # Matrice bimodale experts par expertises
 expertisesMatrix = Matrix(adjacency_matrix(expertisesGraph))
-# matrice d'affiliation bimodale à partir du graph
+# Matrice d'affiliation bimodale à partir du graph
 expertisesAfM = expertisesMatrix[1:numExperts, (numExperts+1):numNodes]
-
+# Projection sur les experts
 expertisesAfM_t = expertisesAfM * transpose(expertisesAfM)
-
+# Graphe de co-occurence des experts par les affaires
 gExpertisesAfM_t = Graph(expertisesAfM_t)
-
+# calcul du degré des nœuds
 nodesize = vec(sum(expertisesAfM_t, dims=1))
-# to keep or not to keep ?
+# @todo pondération
 nodesize = [log(i) for i in nodesize]
-
+# supression des boucles (self-loops)
 [rem_edge!(gExpertisesAfM_t, i, i) for i in 1:40]
-
+# pondération des edges
+# @todo insérer les valeurs dans les propriétés du graphe
 edgelinewidth = Vector()
 for i in collect(edges(gExpertisesAfM_t))
     edgesString = split(string(i), " ")
@@ -359,19 +385,24 @@ for i in collect(edges(gExpertisesAfM_t))
     push!(edgelinewidth, expertisesAfM_t[from, to])
 end
 edgelinewidth
-# attribution d'un couleur pour les experts
+# attribution d'une couleur pour les experts
 expertColor = nodecolor[1:numExperts]
 expertfillc=color[expertColor]
-# paramètres du layout
+# paramètres de mise en page
 expertLayout=(args...)->spring_layout(args...; C=20)
+
+# Graphe valué de co-occurence des experts par les affaires
 gplot(gExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=expertLayout, edgelinewidth=edgelinewidth)
 
 # certains experts participent à plus d’affaires, Borgatti suggère de normaliser les valeurs en utilisant Bonacich
 
 # dans m, diviser les valeurs de la matrice d’origine par la √ de la somme de la colonne d’origine
-colsum = sum(expertisesAfM, dims=2)
 
-ponderation = vec(broadcast(√, colsum))
+expertisesAfM
+
+rowsum = sum(expertisesAfM, dims=2)
+
+ponderation = vec(broadcast(√, rowsum))
 
 ponderate(x) = x ./ ponderation
 
@@ -420,27 +451,31 @@ g_normExpertisesAfM_t = MetaGraph(SimpleGraph(normExpertisesAfM_t))
 # pondération des edges avec les valeurs normalisées
 edgesCollection = collect(edges(g_normExpertisesAfM_t))
 
-
 edgelinewidth = Vector()
 for i in edgesCollection
     edgesString = split(string(i), " ")
     from = parse(Int64, edgesString[2])
     to = parse(Int64, edgesString[4])
-    push!(edgelinewidth, normExpertisesAfM_t[from, to]^3)
+    push!(edgelinewidth, normExpertisesAfM_t[from, to]^2)
 end
 edgelinewidth
 # pondération de la taille de nœuds avec la sommes des valeurs normalisées pour chaque experts
 nodesizeA = vec(sum(normExpertisesAfM_t, dims=1))
-nodesize = [log(i) for i in nodesizeA]
+nodesize = [i for i in nodesizeA]
 
 # attribution d'un couleur pour les experts
 expertColor = nodecolor[1:numExperts]
 expertfillc=color[expertColor]
 
 # paramètres du layout
-expertLayout=(args...)->spring_layout(args...; C=20)
+expertLayout=(args...)->spring_layout(args...; C=22)
 
+# Graphe valué de co-occurence des experts par les affaires pondéré sur le nombre d’expertises
 gplot(g_normExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=expertLayout, edgelinewidth=edgelinewidth)
+
+# Graphe valué de co-occurence des experts par les affaires pondéré sur le nombre d’expertises
+gplot(g_normExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=circular_layout, edgelinewidth=edgelinewidth)
+
 
 #########################################################
 # Metrics
@@ -526,9 +561,10 @@ Plots.scatter(
     label = "eigenvCent.",
     legend = :topleft,
     title = "Mesures de centralité dans le réseau bipartite",
-    xtickfont = font(5, "Arial")
+    xtickfont = font(5, "Arial",
+    smooth=true)
     )
-
+# @check smooth
 scatter!(metrics[!, :bigraphDegreeCentrality], label = "degreeCent.", color = color[2])
 scatter!(metrics[!, :closenessCentrality], label = "closCent.", color = color[3])
 scatter!(metrics[!, :betweennessCentrality], label = "btwCent.", color = color[4])
