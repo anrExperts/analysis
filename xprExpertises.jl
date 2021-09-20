@@ -176,12 +176,26 @@ expertsDegree.degree
 Plots.histogram(expertsDegree.degree, bins=:scott, weights=repeat(1:5, outer=8))
 
 # retire du df les experts pour lesquels nous n'avons pas d'age indiqué.
-expertsAge = sort(dropmissing(expertsData, :age), :age)
+expertsAge = sort(dropmissing(expertsData, :age), :order, rev=true)
 
 #histogram du nb d'expertises par les ages des experts
 Plots.histogram()
-bar!(df.nbExpertises)
-scatter!(xticks=(1:size(expertsAge,1), [join([expertsAge.surname[i], string(expertsAge.age[i])], " - ") for i in 1:nrow(expertsAge)]), xrotation = 45, xtickfont = font(7, "Arial"))
+
+colorHist = Vector()
+#pour chaque nœuds du graph, on vérifie son type pour mettre à jour le vecteur (valeur 1 ou 2 correspondant au position du vecteur color ci-après)
+for i in expertsAge.column
+    if string(i) == "architecte"
+      push!(colorHist, "#FF4500")
+  elseif string(i)  == "entrepreneur"
+      push!(colorHist, "#19FFD1")
+    else
+      push!(colorHist, "#700DFF")
+    end
+end
+
+bar!(expertsAge.n)
+bar!([[i] for i in 1:nrow(expertsAge)], [[i] for i in expertsAge.nbExpertises], color=permutedims(colorHist), legend=false)
+scatter!(xticks=(1:size(expertsAge,1), [join([expertsAge.order[i], expertsAge.surname[i],  string(expertsAge.age[i])], " - ") for i in 1:nrow(expertsAge)]), xrotation = 45, xtickfont = font(7, "Arial"))
 
 # boite à moustache / violon nb d'affaires/catégorie d'expert
 violin(["architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], leg = false)
