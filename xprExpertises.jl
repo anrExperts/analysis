@@ -31,7 +31,10 @@ expertisesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/
 categoriesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/$year/categories").body, header=1) |> DataFrame
 # données sur les experts
 # @ todo compléter dates avec les almanachs
-expertsData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/experts").body, header=1) |> DataFrame
+#expertsData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/experts").body, header=1) |> DataFrame
+# données complétées par RC
+expertsData = CSV.File("/Volumes/data/github/analysis/data/expertsData$year.csv", header=1) |> DataFrame
+
 
 # données sur les expertises
 expertisesData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/expertises").body, header=1) |> DataFrame
@@ -49,7 +52,7 @@ nbExpertsByExpertises = sum.(eachcol(expertisesNetwork[!, Not(:id)]))
 UnicodePlots.histogram(sum.(eachcol(expertisesNetwork[!, Not(:id)])), nbins=length(unique(nbExpertsByExpertises)))
 
 nbExpertisesByExpert = sum.(eachrow(expertisesNetwork[!, Not(:id)]))
-UnicodePlots.histogram(nbExpertisesByExpert, nbins=length(unique(nbExpertisesByExpert)))
+print(UnicodePlots.histogram(nbExpertisesByExpert, nbins=length(unique(nbExpertisesByExpert))))
 
 insertcols!(expertsData, :n => nbExpertisesByExpert)
 describe(expertsData)
@@ -153,8 +156,6 @@ nodefillc=color[nodecolor]
 layout=(args...)->spring_layout(args...; C=30)
 gplot(expertisesGraph, nodefillc=nodefillc, layout=layout)
 
-expertisesGraph.vprops[1]
-
 expertsDegree = DataFrame(name = [get_prop(expertisesGraph, i, (:name)) for i in 1:40], degree = [get_prop(expertisesGraph, i, (:degree)) for i in 1:40])
 sort!(expertsDegree, [:degree])
 
@@ -174,6 +175,22 @@ degreeDistribution = unique(expertsDegree.degree)
 expertsDegree.degree
 Plots.histogram(expertsDegree.degree, bins=:scott, weights=repeat(1:5, outer=8))
 
+# retire du df les experts pour lesquels nous n'avons pas d'age indiqué.
+expertsAge = sort(dropmissing(expertsData, :age), :age)
+
+#histogram du nb d'expertises par les ages des experts
+Plots.histogram()
+bar!(df.nbExpertises)
+scatter!(xticks=(1:size(expertsAge,1), [join([expertsAge.surname[i], string(expertsAge.age[i])], " - ") for i in 1:nrow(expertsAge)]), xrotation = 45, xtickfont = font(7, "Arial"))
+
+# boite à moustache / violon nb d'affaires/catégorie d'expert
+violin(["architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], leg = false)
+Plots.boxplot!(["architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], leg = false)
+
+# ou si on ne veut pas du violon
+Plots.boxplot(["architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], leg = false)
+
+Plots.boxplot(["architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], leg = false)
 #########################################################
 # Métagraph experts - categories
 #########################################################
