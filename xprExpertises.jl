@@ -33,7 +33,7 @@ categoriesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/
 # @ todo compléter dates avec les almanachs
 #expertsData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/experts").body, header=1) |> DataFrame
 # données complétées par RC
-expertsData = CSV.File("/Volumes/data/github/analysis/data/expertsData$year.csv", header=1) |> DataFrame
+expertsData = CSV.File("data/expertsData$year.csv", header=1) |> DataFrame
 
 
 # données sur les expertises
@@ -134,7 +134,7 @@ edges(expertisesGraph)
 nodelabelc = colorant"white"
 
 # vecteur couleurs
-color = [colorant"#FF4500", colorant"#19FFD1", colorant"#700DFF", colorant"#FFF819"]
+colors = [colorant"#FF4500", colorant"#19FFD1", colorant"#700DFF", colorant"#FFF819"]
 
 nodecolor = Vector()
 #pour chaque nœuds du graph, on vérifie son type pour mettre à jour le vecteur (valeur 1 ou 2 correspondant au position du vecteur color ci-après)
@@ -152,7 +152,7 @@ for i in sort(collect(keys(expertisesGraph.vprops)))
   end
 end
  # creation du vecteur expert/couleur(rgb)
-nodefillc=color[nodecolor]
+nodefillc=colors[nodecolor]
 layout=(args...)->spring_layout(args...; C=30)
 gplot(expertisesGraph, nodefillc=nodefillc, layout=layout)
 
@@ -271,7 +271,7 @@ for name in 1:(numExperts+numCategories)
 end
 
  # creation du vecteur expert/couleur(rgb)
-nodefillcCatGraph=color[nodecolorCatGraph]
+nodefillcCatGraph=colors[nodecolorCatGraph]
 layout=(args...)->spring_layout(args...; C=20)
 # @todo faire un parallel coordinates networks
 gplot(categoriesGraph, nodelabel=nodelabelCatGraph, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodefillc=nodefillcCatGraph, layout=layout)
@@ -418,7 +418,7 @@ end
 edgelinewidth
 # attribution d'une couleur pour les experts
 expertColor = nodecolor[1:numExperts]
-expertfillc=color[expertColor]
+expertfillc=colors[expertColor]
 # paramètres de mise en page
 expertLayout=(args...)->spring_layout(args...; C=20)
 
@@ -496,7 +496,7 @@ nodesize = [i for i in nodesizeA]
 
 # attribution d'un couleur pour les experts
 expertColor = nodecolor[1:numExperts]
-expertfillc=color[expertColor]
+expertfillc=colors[expertColor]
 
 # paramètres du layout
 expertLayout=(args...)->spring_layout(args...; C=22)
@@ -507,6 +507,40 @@ gplot(g_normExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodel
 # Graphe valué de co-occurence des experts par les affaires pondéré sur le nombre d’expertises
 gplot(g_normExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=circular_layout, edgelinewidth=edgelinewidth)
 
+###assortativity
+function assortativity(g, cat1, cat2 = "foo")
+    nue  = ne(g)
+    sjk = 0
+    sj  = 0
+    sk  = 0
+    sjs = 0
+    sks = 0
+    if cat2 == "foo"
+        cat2 = cat1
+    end
+    for (u,v) in edges(g)
+        j   = cat1[u];
+        k   = cat2[v];
+        sjk += j*k
+        sj  += j
+        sk  += k
+        sjs += j^2
+        sks += k^2
+    end
+    if typeof(g)==LightGraphs.DiGraph
+        res = (sjk - sj*sk/nue)/sqrt((sjs - sj^2/nue)*(sks - sk^2/nue))
+    end
+    if typeof(g)==LightGraphs.Graph
+        res = (sjk/nue - ((sj + sk)/(2*nue))^2)/((sjs + sks)/(2*nue) - ((sj + sk)/(2*nue))^2)
+    end
+    return res
+end
+
+
+cat1 = [(ifelse(i == "architecte", 1, 2)) for i in expertsData.column]
+assortativity(Graph(g_normExpertisesAfM_t), cat1 )
+
+Graph(g_normExpertisesAfM_t)
 
 #########################################################
 # Metrics
