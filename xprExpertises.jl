@@ -17,6 +17,9 @@ using MultivariateStats
 using GraphIO
 using EzXML
 using Statistics
+# Cairo et Compose : pour sauvegarder les gplot
+using Cairo
+using Compose
 
 
 #########################################################
@@ -33,14 +36,14 @@ categoriesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/
 # @ todo compléter dates avec les almanachs
 #expertsData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/experts").body, header=1) |> DataFrame
 # données complétées par RC
-expertsData = CSV.File("data/expertsData$year.csv", header=1) |> DataFrame
+expertsData = CSV.File("/Volumes/data/github/analysis/data/expertsData$year.csv", header=1) |> DataFrame
 
 
 # données sur les expertises
 expertisesData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/expertises").body, header=1) |> DataFrame
 
 # données sur les catégories
-categoriesData = DataFrame(id=names(categoriesNetwork[!, Not(:id)]), name=["Estimer la valeur des biens", "Décrire et évaluer les travaux à venir", "Recevoir et évaluer le travail réalisé", "Départager", "Enregistrer"])
+categoriesData = DataFrame(id=names(categoriesNetwork[!, Not(:id)]), name=["Recevoir et évaluer le travail réalisé", "Décrire et évaluer les travaux à venir", "Estimer la valeur des biens", "Départager", "Enregistrer"])
 
 
 # @todo mettre en évidence la répartition inégale des affaires entre experts
@@ -57,6 +60,7 @@ print(UnicodePlots.histogram(nbExpertisesByExpert, nbins=length(unique(nbExperti
 insertcols!(expertsData, :n => nbExpertisesByExpert)
 describe(expertsData)
 archis = expertsData[expertsData[!, :column] .== "architecte", :]
+println(archis)
 describe(archis)
 entrepreneurs = (expertsData[expertsData[!, :column] .== "entrepreneur", :])
 describe(entrepreneurs)
@@ -134,7 +138,7 @@ edges(expertisesGraph)
 nodelabelc = colorant"white"
 
 # vecteur couleurs
-colors = [colorant"#FF4500", colorant"#19FFD1", colorant"#700DFF", colorant"#FFF819"]
+colors = [colorant"#FF4500", colorant"#00D6AB", colorant"#700DFF", colorant"#FFF819"]
 
 nodecolor = Vector()
 #pour chaque nœuds du graph, on vérifie son type pour mettre à jour le vecteur (valeur 1 ou 2 correspondant au position du vecteur color ci-après)
@@ -155,14 +159,30 @@ end
 nodefillc=colors[nodecolor]
 layout=(args...)->spring_layout(args...; C=30)
 gplot(expertisesGraph, nodefillc=nodefillc, layout=layout)
+# /!\ ne pas appeler une variable contenant le graph => écrit un fichier svg en noir et blanc.
+draw(SVG("expertisesGraph.svg"), gplot(expertisesGraph, nodefillc=nodefillc, layout=layout))
 
-expertsDegree = DataFrame(name = [get_prop(expertisesGraph, i, (:name)) for i in 1:40], degree = [get_prop(expertisesGraph, i, (:degree)) for i in 1:40])
+expertsDegree = DataFrame(name = [get_prop(expertisesGraph, i, (:name)) for i in 1:40], degree = [get_prop(expertisesGraph, i, (:degree)) for i in 1:40], column = [get_prop(expertisesGraph, i, (:column)) for i in 1:40])
 sort!(expertsDegree, [:degree])
+
+expertsDegreeColor = Vector()
+#pour chaque nœuds du graph, on vérifie son type pour mettre à jour le vecteur (valeur 1 ou 2 correspondant au position du vecteur color ci-après)
+for i in expertsDegree.column
+    if string(i) == "architecte"
+      push!(expertsDegreeColor, "#FF4500")
+  elseif string(i)  == "entrepreneur"
+      push!(expertsDegreeColor, "#00D6AB")
+    else
+      push!(expertsDegreeColor, "#700DFF")
+    end
+end
+expertsDegreeColor
 
 Plots.histogram()
 bar!(expertsDegree.degree)
-scatter!(xticks=(1:size(expertsDegree,1), expertsDegree[!, :name]), xrotation = 45, xtickfont = font(7, "Arial"))
-
+bar!([[i] for i in 1:nrow(expertsDegree)], [[i] for i in expertsDegree.degree], color=permutedims(expertsDegreeColor), legend=false)
+scatter!(xticks=(1:size(expertsDegree,1), expertsDegree[!, :name]), xrotation = 45, xtickfont = font(7, "Arial"), title="Nombre d'affaires par expert ($year)")
+Plots.savefig("nbAffairesParExpert.svg")
 k = keys(degree_histogram(expertisesGraph))
 v = values(degree_histogram(expertisesGraph))
 
@@ -176,7 +196,7 @@ expertsDegree.degree
 Plots.histogram(expertsDegree.degree, bins=:scott, weights=repeat(1:5, outer=8))
 
 # retire du df les experts pour lesquels nous n'avons pas d'age indiqué.
-expertsAge = sort(dropmissing(expertsData, :age), :order, rev=true)
+expertsAge = sort(dropmissing(expertsData, :age), :order, rev=false)
 
 #histogram du nb d'expertises par les ages des experts
 Plots.histogram()
@@ -187,7 +207,7 @@ for i in expertsAge.column
     if string(i) == "architecte"
       push!(colorHist, "#FF4500")
   elseif string(i)  == "entrepreneur"
-      push!(colorHist, "#19FFD1")
+      push!(colorHist, "#00D6AB")
     else
       push!(colorHist, "#700DFF")
     end
@@ -195,16 +215,16 @@ end
 
 bar!(expertsAge.n)
 bar!([[i] for i in 1:nrow(expertsAge)], [[i] for i in expertsAge.nbExpertises], color=permutedims(colorHist), legend=false)
-scatter!(xticks=(1:size(expertsAge,1), [join([expertsAge.order[i], expertsAge.surname[i],  string(expertsAge.age[i])], " - ") for i in 1:nrow(expertsAge)]), xrotation = 45, xtickfont = font(7, "Arial"))
-
+scatter!(xticks=(1:size(expertsAge,1), [join([expertsAge.order[i], expertsAge.surname[i],  string(expertsAge.age[i])], " - ") for i in 1:nrow(expertsAge)]), xrotation = 45, xtickfont = font(7, "Arial"), title= "Nombre d'affaires par expert par ordre des colonnes ($year)", titlefont=font(12, "Arial"))
+Plots.savefig("nbAffairesParExpertOrdre.svg")
 # boite à moustache / violon nb d'affaires/catégorie d'expert
-violin(["architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], leg = false)
-Plots.boxplot!(["architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], leg = false)
-
+violin(["architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], leg = false, color=permutedims(["#FF4500", "#00D6AB"]), title="Nombre d'affaires par catégorie d’expert ($year)", titlefont=font(12, "Arial"))
+Plots.boxplot!(["architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], color=permutedims(["#00D6AB", "#FF4500"]), leg = false)
+Plots.savefig("nbAffairesParCategorieExpert.svg")
 # ou si on ne veut pas du violon
-Plots.boxplot(["architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], leg = false)
+Plots.boxplot(["architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], color=permutedims(["#FF4500", "#00D6AB"]), leg = false, title="Nombre d'affaires par catégorie d’expert ($year)", titlefont=font(12, "Arial"))
 
-Plots.boxplot(["architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], leg = false)
+
 #########################################################
 # Métagraph experts - categories
 #########################################################
@@ -278,6 +298,23 @@ gplot(categoriesGraph, nodelabel=nodelabelCatGraph, nodelabelc=nodelabelc, nodel
 
 # il semble a priori que les architectes et les entrepreneurs participent à tous les types d'affaires
 expertsData = innerjoin(expertsData, categoriesNetwork, on=:id)
+archis = expertsData[expertsData[!, :column] .== "architecte", :]
+entrepreneurs = expertsData[expertsData[!, :column] .== "entrepreneur", :]
+acceptationPlot = violin(["architectes" "Entrepreneurs"], [archis.acceptation, entrepreneurs.acceptation], leg = false, color=permutedims(["#FF4500", "#00D6AB"]), title="Recevoir et évaluer le travail réalisé ($year)", titlefont=font(8, "Arial"))
+Plots.boxplot!(["architectes" "Entrepreneurs"], [archis.acceptation, entrepreneurs.acceptation], color=permutedims(["#00D6AB", "#FF4500"]), leg = false)
+
+estimationPlot = violin(["architectes" "Entrepreneurs"], [archis.estimation, entrepreneurs.estimation], leg = false, color=permutedims(["#FF4500", "#00D6AB"]), title="Estimer la valeur des biens ($year)", titlefont=font(8, "Arial"))
+Plots.boxplot!(["architectes" "Entrepreneurs"], [archis.estimation, entrepreneurs.estimation], color=permutedims(["#00D6AB", "#FF4500"]), leg = false)
+
+assessmentPlot = violin(["architectes" "Entrepreneurs"], [archis.assessment, entrepreneurs.assessment], leg = false, color=permutedims(["#FF4500", "#00D6AB"]), title="Départager ($year)", titlefont=font(8, "Arial"))
+Plots.boxplot!(["architectes" "Entrepreneurs"], [archis.assessment, entrepreneurs.assessment], color=permutedims(["#00D6AB", "#FF4500"]), leg = false)
+
+settlementPlot = violin(["architectes" "Entrepreneurs"], [archis.settlement, entrepreneurs.settlement], leg = false, color=permutedims(["#FF4500", "#00D6AB"]), title="Décrire et évaluer les travaux à venir ($year)", titlefont=font(8, "Arial"))
+Plots.boxplot!(["architectes" "Entrepreneurs"], [archis.settlement, entrepreneurs.settlement], color=permutedims(["#00D6AB", "#FF4500"]), leg = false)
+Plots.savefig("settlement.svg")
+
+Plots.plot(acceptationPlot, assessmentPlot, settlementPlot, estimationPlot, layout = (2, 2), legend = false)
+Plots.savefig("categoriesParCatExpert.svg")
 # afficher les statistiques de base sur la répartiton des affaires.
 categoriesStats = describe(select(expertsData, :nbExpertises, :estimation, :assessment, :settlement, :acceptation, :registration), :mean, :min, :median, :max, :std)
 # la médianne est très inférieure à la moyenne, certains experts monopolisent de nombreuses expertises. L’écart type est particulièrement élevé sur le nombre d’affaires.
@@ -424,6 +461,7 @@ expertLayout=(args...)->spring_layout(args...; C=20)
 
 # Graphe valué de co-occurence des experts par les affaires
 gplot(gExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=expertLayout, edgelinewidth=edgelinewidth)
+draw(SVG("GrapheCooccurenceExpertsAffaires.svg", 20cm, 20cm), gplot(gExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=expertLayout, edgelinewidth=edgelinewidth))
 
 # certains experts participent à plus d’affaires, Borgatti suggère de normaliser les valeurs en utilisant Bonacich
 
@@ -503,7 +541,7 @@ expertLayout=(args...)->spring_layout(args...; C=22)
 
 # Graphe valué de co-occurence des experts par les affaires pondéré sur le nombre d’expertises
 gplot(g_normExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=expertLayout, edgelinewidth=edgelinewidth)
-
+draw(SVG("GrapheNormCooccurenceExpertsAffaires.svg", 20cm, 20cm), gplot(g_normExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=expertLayout, edgelinewidth=edgelinewidth))
 # Graphe valué de co-occurence des experts par les affaires pondéré sur le nombre d’expertises
 gplot(g_normExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=circular_layout, edgelinewidth=edgelinewidth)
 
