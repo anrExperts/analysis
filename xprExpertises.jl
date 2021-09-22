@@ -160,7 +160,7 @@ nodefillc=colors[nodecolor]
 layout=(args...)->spring_layout(args...; C=30)
 gplot(expertisesGraph, nodefillc=nodefillc, layout=layout)
 # /!\ ne pas appeler une variable contenant le graph => écrit un fichier svg en noir et blanc.
-draw(SVG("expertisesGraph.svg"), gplot(expertisesGraph, nodefillc=nodefillc, layout=layout))
+draw(SVG("expertisesGraph.svg", 16cm, 16cm), gplot(expertisesGraph, nodefillc=nodefillc, layout=layout))
 
 expertsDegree = DataFrame(name = [get_prop(expertisesGraph, i, (:name)) for i in 1:40], degree = [get_prop(expertisesGraph, i, (:degree)) for i in 1:40], column = [get_prop(expertisesGraph, i, (:column)) for i in 1:40])
 sort!(expertsDegree, [:degree])
@@ -181,7 +181,7 @@ expertsDegreeColor
 Plots.histogram()
 bar!(expertsDegree.degree)
 bar!([[i] for i in 1:nrow(expertsDegree)], [[i] for i in expertsDegree.degree], color=permutedims(expertsDegreeColor), legend=false)
-scatter!(xticks=(1:size(expertsDegree,1), expertsDegree[!, :name]), xrotation = 45, xtickfont = font(7, "Arial"), title="Nombre d'affaires par expert ($year)")
+scatter!(xticks=(1:size(expertsDegree,1), expertsDegree[!, :name]), xrotation = 45, xtickfont = font(7, "Arial"), title="Nombre d'affaires par expert ($year)\n tri par nombre d'affaires")
 Plots.savefig("nbAffairesParExpert.svg")
 k = keys(degree_histogram(expertisesGraph))
 v = values(degree_histogram(expertisesGraph))
@@ -196,14 +196,14 @@ expertsDegree.degree
 Plots.histogram(expertsDegree.degree, bins=:scott, weights=repeat(1:5, outer=8))
 
 # retire du df les experts pour lesquels nous n'avons pas d'age indiqué.
-expertsAge = sort(dropmissing(expertsData, :age), :order, rev=false)
+sortedExpertsData_age = sort(dropmissing(expertsData, :age), :age, rev=false)
 
 #histogram du nb d'expertises par les ages des experts
 Plots.histogram()
 
 colorHist = Vector()
 #pour chaque nœuds du graph, on vérifie son type pour mettre à jour le vecteur (valeur 1 ou 2 correspondant au position du vecteur color ci-après)
-for i in expertsAge.column
+for i in sortedExpertsData_age.column
     if string(i) == "architecte"
       push!(colorHist, "#FF4500")
   elseif string(i)  == "entrepreneur"
@@ -213,16 +213,38 @@ for i in expertsAge.column
     end
 end
 
-bar!(expertsAge.n)
-bar!([[i] for i in 1:nrow(expertsAge)], [[i] for i in expertsAge.nbExpertises], color=permutedims(colorHist), legend=false)
-scatter!(xticks=(1:size(expertsAge,1), [join([expertsAge.order[i], expertsAge.surname[i],  string(expertsAge.age[i])], " - ") for i in 1:nrow(expertsAge)]), xrotation = 45, xtickfont = font(7, "Arial"), title= "Nombre d'affaires par expert par ordre des colonnes ($year)", titlefont=font(12, "Arial"))
-Plots.savefig("nbAffairesParExpertOrdre.svg")
+bar!(sortedExpertsData_age.n)
+bar!([[i] for i in 1:nrow(sortedExpertsData_age)], [[i] for i in sortedExpertsData_age.nbExpertises], color=permutedims(colorHist), legend=false)
+scatter!(xticks=(1:size(sortedExpertsData_age,1), [join([sortedExpertsData_age.surname[i],  string(sortedExpertsData_age.age[i])], " - ") for i in 1:nrow(sortedExpertsData_age)]), xrotation = 45, xtickfont = font(7, "Arial"), title= "Nombre d'affaires par expert ($year) \n tri par âge des experts", titlefont=font(12, "Arial"))
+Plots.savefig("nbAffairesParExpertAge.svg")
+
+columnsOrderExpertsData = sort(dropmissing(expertsData, :age), :order, rev=true)
+
+Plots.histogram()
+
+colorColumnsOrderExpertsData = Vector()
+#pour chaque nœuds du graph, on vérifie son type pour mettre à jour le vecteur (valeur 1 ou 2 correspondant au position du vecteur color ci-après)
+for i in columnsOrderExpertsData.column
+    if string(i) == "architecte"
+      push!(colorColumnsOrderExpertsData, "#FF4500")
+  elseif string(i)  == "entrepreneur"
+      push!(colorColumnsOrderExpertsData, "#00D6AB")
+    else
+      push!(colorColumnsOrderExpertsData, "#700DFF")
+    end
+end
+
+bar!(columnsOrderExpertsData.n)
+bar!([[i] for i in 1:nrow(columnsOrderExpertsData)], [[i] for i in columnsOrderExpertsData.nbExpertises], color=permutedims(colorHist), legend=false)
+scatter!(xticks=(1:size(columnsOrderExpertsData,1), [join([columnsOrderExpertsData.surname[i],  string(columnsOrderExpertsData.order[i])], " - ") for i in 1:nrow(columnsOrderExpertsData)]), xrotation = 45, xtickfont = font(5, "Arial"), title= "Nombre d'affaires par expert ($year) \n tri par ordre des colonnes ", titlefont=font(12, "Arial"))
+Plots.savefig("nbAffairesOrdreColonnes.svg")
+
 # boite à moustache / violon nb d'affaires/catégorie d'expert
-violin(["architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], leg = false, color=permutedims(["#FF4500", "#00D6AB"]), title="Nombre d'affaires par catégorie d’expert ($year)", titlefont=font(12, "Arial"))
-Plots.boxplot!(["architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], color=permutedims(["#00D6AB", "#FF4500"]), leg = false)
+violin(["Architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], leg = false, color=permutedims(["#FF4500", "#00D6AB"]), title="Nombre d'affaires par catégorie d’experts ($year)", titlefont=font(12, "Arial"))
+Plots.boxplot!(["Architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], color=permutedims(["#00D6AB", "#FF4500"]), leg = false)
 Plots.savefig("nbAffairesParCategorieExpert.svg")
 # ou si on ne veut pas du violon
-Plots.boxplot(["architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], color=permutedims(["#FF4500", "#00D6AB"]), leg = false, title="Nombre d'affaires par catégorie d’expert ($year)", titlefont=font(12, "Arial"))
+Plots.boxplot(["Architectes" "Entrepreneurs"], [archis.n, entrepreneurs.n], color=permutedims(["#FF4500", "#00D6AB"]), leg = false, title="Nombre d'affaires par catégorie d’expert ($year)", titlefont=font(12, "Arial"))
 
 
 #########################################################
@@ -300,18 +322,13 @@ gplot(categoriesGraph, nodelabel=nodelabelCatGraph, nodelabelc=nodelabelc, nodel
 expertsData = innerjoin(expertsData, categoriesNetwork, on=:id)
 archis = expertsData[expertsData[!, :column] .== "architecte", :]
 entrepreneurs = expertsData[expertsData[!, :column] .== "entrepreneur", :]
-acceptationPlot = violin(["architectes" "Entrepreneurs"], [archis.acceptation, entrepreneurs.acceptation], leg = false, color=permutedims(["#FF4500", "#00D6AB"]), title="Recevoir et évaluer le travail réalisé ($year)", titlefont=font(8, "Arial"))
-Plots.boxplot!(["architectes" "Entrepreneurs"], [archis.acceptation, entrepreneurs.acceptation], color=permutedims(["#00D6AB", "#FF4500"]), leg = false)
+acceptationPlot = Plots.boxplot(["Architectes" "Entrepreneurs"], [archis.acceptation, entrepreneurs.acceptation], color=permutedims(["#00D6AB", "#FF4500"]), leg = false, title="Recevoir et évaluer le travail réalisé ($year)", titlefont=font(8, "Arial"))
 
-estimationPlot = violin(["architectes" "Entrepreneurs"], [archis.estimation, entrepreneurs.estimation], leg = false, color=permutedims(["#FF4500", "#00D6AB"]), title="Estimer la valeur des biens ($year)", titlefont=font(8, "Arial"))
-Plots.boxplot!(["architectes" "Entrepreneurs"], [archis.estimation, entrepreneurs.estimation], color=permutedims(["#00D6AB", "#FF4500"]), leg = false)
+estimationPlot = Plots.boxplot(["Architectes" "Entrepreneurs"], [archis.estimation, entrepreneurs.estimation], color=permutedims(["#00D6AB", "#FF4500"]), leg = false, title="Estimer la valeur des biens ($year)", titlefont=font(8, "Arial"))
 
-assessmentPlot = violin(["architectes" "Entrepreneurs"], [archis.assessment, entrepreneurs.assessment], leg = false, color=permutedims(["#FF4500", "#00D6AB"]), title="Départager ($year)", titlefont=font(8, "Arial"))
-Plots.boxplot!(["architectes" "Entrepreneurs"], [archis.assessment, entrepreneurs.assessment], color=permutedims(["#00D6AB", "#FF4500"]), leg = false)
+assessmentPlot = Plots.boxplot(["Architectes" "Entrepreneurs"], [archis.assessment, entrepreneurs.assessment], color=permutedims(["#00D6AB", "#FF4500"]), leg = false, title="Départager ($year)", titlefont=font(8, "Arial"))
 
-settlementPlot = violin(["architectes" "Entrepreneurs"], [archis.settlement, entrepreneurs.settlement], leg = false, color=permutedims(["#FF4500", "#00D6AB"]), title="Décrire et évaluer les travaux à venir ($year)", titlefont=font(8, "Arial"))
-Plots.boxplot!(["architectes" "Entrepreneurs"], [archis.settlement, entrepreneurs.settlement], color=permutedims(["#00D6AB", "#FF4500"]), leg = false)
-Plots.savefig("settlement.svg")
+settlementPlot = Plots.boxplot(["Architectes" "Entrepreneurs"], [archis.settlement, entrepreneurs.settlement], color=permutedims(["#00D6AB", "#FF4500"]), leg = false, title="Décrire et évaluer les travaux à venir ($year)", titlefont=font(8, "Arial"))
 
 Plots.plot(acceptationPlot, assessmentPlot, settlementPlot, estimationPlot, layout = (2, 2), legend = false)
 Plots.savefig("categoriesParCatExpert.svg")
