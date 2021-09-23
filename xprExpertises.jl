@@ -34,9 +34,9 @@ expertisesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/
 categoriesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/$year/categories").body, header=1) |> DataFrame
 # données sur les experts
 # @ todo compléter dates avec les almanachs
-#expertsData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/experts").body, header=1) |> DataFrame
+expertsData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/experts").body, header=1) |> DataFrame
 # données complétées par RC
-expertsData = CSV.File("/Volumes/data/github/analysis/data/expertsData$year.csv", header=1) |> DataFrame
+#expertsData = CSV.File("/Volumes/data/github/analysis/data/expertsData$year.csv", header=1) |> DataFrame
 
 
 # données sur les expertises
@@ -162,7 +162,7 @@ gplot(expertisesGraph, nodefillc=nodefillc, layout=layout)
 # /!\ ne pas appeler une variable contenant le graph => écrit un fichier svg en noir et blanc.
 draw(SVG("expertisesGraph.svg", 16cm, 16cm), gplot(expertisesGraph, nodefillc=nodefillc, layout=layout))
 
-expertsDegree = DataFrame(name = [get_prop(expertisesGraph, i, (:name)) for i in 1:40], degree = [get_prop(expertisesGraph, i, (:degree)) for i in 1:40], column = [get_prop(expertisesGraph, i, (:column)) for i in 1:40])
+expertsDegree = DataFrame(name = [get_prop(expertisesGraph, i, (:name)) for i in 1:numExperts], degree = [get_prop(expertisesGraph, i, (:degree)) for i in 1:numExperts], column = [get_prop(expertisesGraph, i, (:column)) for i in 1:numExperts])
 sort!(expertsDegree, [:degree])
 
 expertsDegreeColor = Vector()
@@ -314,10 +314,10 @@ end
 
  # creation du vecteur expert/couleur(rgb)
 nodefillcCatGraph=colors[nodecolorCatGraph]
-layout=(args...)->spring_layout(args...; C=20)
+layout=(args...)->spring_layout(args...; C=25)
 # @todo faire un parallel coordinates networks
 gplot(categoriesGraph, nodelabel=nodelabelCatGraph, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodefillc=nodefillcCatGraph, layout=layout)
-
+draw(SVG("categoriesGraph.svg", 20cm, 20cm), gplot(categoriesGraph, nodelabel=nodelabelCatGraph, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodefillc=nodefillcCatGraph, layout=layout))
 # il semble a priori que les architectes et les entrepreneurs participent à tous les types d'affaires
 expertsData = innerjoin(expertsData, categoriesNetwork, on=:id)
 archis = expertsData[expertsData[!, :column] .== "architecte", :]
@@ -412,7 +412,8 @@ for i in edgesCollectionCat
 end
 [rem_edge!(expertsByCategoriesNormPGraph, i, i) for i in 1:numCategories]
 
-gplot(expertsByCategoriesNormPGraph, edgelinewidth=edgelinewidthCat, nodelabel=categoriesNames, nodelabelc=nodelabelc, nodelabeldist=1.5, nodelabelangleoffset=π/2)
+gplot(expertsByCategoriesNormPGraph, edgelinewidth=edgelinewidthCat, nodelabel=categoriesNames, nodelabelc=nodelabelc, nodelabeldist=1.5, nodelabelangleoffset=π/2, nodefillc=["#FFF819", "#FFF819", "#FFF819", "#FFF819", "#FFF819"])
+draw(SVG("categoriesGraphP.svg"), gplot(expertsByCategoriesNormPGraph, edgelinewidth=edgelinewidthCat, nodelabel=categoriesNames, nodelabelc=nodelabelc, nodelabeldist=1.5, nodelabelangleoffset=π/2, nodefillc=["#FFF819", "#FFF819", "#FFF819", "#FFF819", "#FFF819"]))
 # trivial car le graph est complet. Certains experts réalisant des affaires de toutes les catégories
 # resultMatrix[row][column] = sum(A[row][every column x]*B[row x][column])
 # The sequence of operations should do the following:
@@ -436,6 +437,7 @@ nlist[2] = 6:nv(expertsByCategoriesNormTGraph) # second shell
 locs_x, locs_y = shell_layout(expertsByCategoriesNormTGraph, nlist)
 
 gplot(expertsByCategoriesNormTGraph, edgelinewidth=edgelinewidthCat_T, nodelabel=expertNames, nodelabelc=nodelabelc, nodefillc=nodefillc[1:40], nodelabeldist=1.5, nodelabelangleoffset=π/2, layout=circular_layout, linetype="curve")
+draw(SVG("categoriesExpertsGraph.svg", 20cm, 20cm), gplot(expertsByCategoriesNormTGraph, edgelinewidth=edgelinewidthCat_T, nodelabel=expertNames, nodelabelc=nodelabelc, nodefillc=nodefillc[1:40], nodelabeldist=1.5, nodelabelangleoffset=π/2, layout=circular_layout, linetype="curve"))
 
 # discuter des répartition inégale des experts selon les catégories d'affaires. S'il y a des liens plus fort c'est certainement dû au nombre d'affaires (même ajusté ça persiste). Le graphe des experts par catégories montre la proéminence de certains types d'affaires, mais en revanche le graphe projeté par experts ne permet pas à première vue de déterminer des communautés d'experts ni un mécanisme d'attribution des types d'expertise.
 # pas de structuration de la communauté à partir des catégories. Il faudrait peut être faire des analyses de bi-cliques ou de sous-cliques (même si vraisemblablement il n'y en a pas). Mais dans le fond, c'est déjà un résultat.
@@ -463,7 +465,7 @@ nodesize = [first(sum(expertisesAfM_t[:, i], dims=1)) - expertisesAfM_t[i, i] fo
 # @todo pondération
 nodesize = [sqrt(i) for i in nodesize]
 # supression des boucles (self-loops)
-[rem_edge!(gExpertisesAfM_t, i, i) for i in 1:40]
+[rem_edge!(gExpertisesAfM_t, i, i) for i in 1:numExperts]
 # pondération des edges
 # @todo insérer les valeurs dans les propriétés du graphe
 edgelinewidth = Vector()
@@ -509,11 +511,11 @@ normExpertisesAfM_t = normExpertisesAfM * transpose(normExpertisesAfM)
 # Pour l'interprétation, voir Bogartti 1997 p. 245-246
 
 # collaboration avec des architectes, mis à jour avec la boucle ci-dessous
-collabArchi = Int.(vec(zeros(40, 1)))
+collabArchi = Int.(vec(zeros(numExperts, 1)))
 # collaboration avec des entrepreneurs, mis à jour avec la boucle ci-dessous
-collabEnt = Int.(vec(zeros(40, 1)))
+collabEnt = Int.(vec(zeros(numExperts, 1)))
 # collaboration avec des transfuges (ou inconnus), mis à jour avec la boucle ci-dessous
-collabAutres = Int.(vec(zeros(40, 1)))
+collabAutres = Int.(vec(zeros(numExperts, 1)))
 
 for expert in 1:numExperts
     for collab in 1:numExperts
@@ -532,7 +534,7 @@ end
 #graphe de la matrice normalisée transposée
 g_normExpertisesAfM_t = MetaGraph(SimpleGraph(normExpertisesAfM_t))
 
-[rem_edge!(g_normExpertisesAfM_t, i, i) for i in 1:40]
+[rem_edge!(g_normExpertisesAfM_t, i, i) for i in 1:numExperts]
 
 #########################################################
 # VIZ
@@ -546,7 +548,7 @@ for i in edgesCollection
     edgesString = split(string(i), " ")
     from = parse(Int64, edgesString[2])
     to = parse(Int64, edgesString[4])
-    push!(edgelinewidth, normExpertisesAfM_t[from, to]^2)
+    push!(edgelinewidth, normExpertisesAfM_t[from, to])
 end
 edgelinewidth
 # pondération de la taille de nœuds avec la sommes des valeurs normalisées pour chaque experts
@@ -731,3 +733,5 @@ locs_y
 gplot(expertisesGraph, locs_x, locs_y)
 
 readedgelist(expertisesGraph)
+
+CSV.write("experts1776.csv", expertsData)
