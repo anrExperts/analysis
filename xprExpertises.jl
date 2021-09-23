@@ -235,7 +235,7 @@ for i in columnsOrderExpertsData.column
 end
 
 bar!(columnsOrderExpertsData.n)
-bar!([[i] for i in 1:nrow(columnsOrderExpertsData)], [[i] for i in columnsOrderExpertsData.nbExpertises], color=permutedims(colorHist), legend=false)
+bar!([[i] for i in 1:nrow(columnsOrderExpertsData)], [[i] for i in columnsOrderExpertsData.nbExpertises], color=permutedims(colorColumnsOrderExpertsData), legend=false)
 scatter!(xticks=(1:size(columnsOrderExpertsData,1), [join([columnsOrderExpertsData.surname[i],  string(columnsOrderExpertsData.order[i])], " - ") for i in 1:nrow(columnsOrderExpertsData)]), xrotation = 45, xtickfont = font(5, "Arial"), title= "Nombre d'affaires par expert ($year) \n tri par ordre des colonnes ", titlefont=font(12, "Arial"))
 Plots.savefig("nbAffairesOrdreColonnes.svg")
 
@@ -452,12 +452,16 @@ expertisesMatrix = Matrix(adjacency_matrix(expertisesGraph))
 expertisesAfM = expertisesMatrix[1:numExperts, (numExperts+1):numNodes]
 # Projection sur les experts
 expertisesAfM_t = expertisesAfM * transpose(expertisesAfM)
+
 # Graphe de co-occurence des experts par les affaires
 gExpertisesAfM_t = Graph(expertisesAfM_t)
 # calcul du degré des nœuds
-nodesize = vec(sum(expertisesAfM_t, dims=1))
+#nodesize = vec(sum(expertisesAfM_t, dims=1))
+#pour faire un node size sur la force des nœuds (retire les selfLoop)
+nodesize = [first(sum(expertisesAfM_t[:, i], dims=1)) - expertisesAfM_t[i, i] for i in 1:numExperts]
+
 # @todo pondération
-nodesize = [log(i) for i in nodesize]
+nodesize = [sqrt(i) for i in nodesize]
 # supression des boucles (self-loops)
 [rem_edge!(gExpertisesAfM_t, i, i) for i in 1:40]
 # pondération des edges
@@ -474,11 +478,11 @@ edgelinewidth
 expertColor = nodecolor[1:numExperts]
 expertfillc=colors[expertColor]
 # paramètres de mise en page
-expertLayout=(args...)->spring_layout(args...; C=20)
+expertLayout=(args...)->spring_layout(args...; C=22)
 
 # Graphe valué de co-occurence des experts par les affaires
 gplot(gExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=expertLayout, edgelinewidth=edgelinewidth)
-draw(SVG("GrapheCooccurenceExpertsAffaires.svg", 20cm, 20cm), gplot(gExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=expertLayout, edgelinewidth=edgelinewidth))
+draw(SVG("GrapheCooccurenceExpertsAffaires2.svg", 20cm, 20cm), gplot(gExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=expertLayout, edgelinewidth=edgelinewidth))
 
 # certains experts participent à plus d’affaires, Borgatti suggère de normaliser les valeurs en utilisant Bonacich
 
@@ -546,8 +550,10 @@ for i in edgesCollection
 end
 edgelinewidth
 # pondération de la taille de nœuds avec la sommes des valeurs normalisées pour chaque experts
+nodesize = [first(sum(normExpertisesAfM_t[:, i], dims=1)) - normExpertisesAfM_t[i, i] for i in 1:numExperts]
+
 nodesizeA = vec(sum(normExpertisesAfM_t, dims=1))
-nodesize = [i for i in nodesizeA]
+nodesize = [sqrt(i) for i in nodesize]
 
 # attribution d'un couleur pour les experts
 expertColor = nodecolor[1:numExperts]
@@ -558,7 +564,7 @@ expertLayout=(args...)->spring_layout(args...; C=22)
 
 # Graphe valué de co-occurence des experts par les affaires pondéré sur le nombre d’expertises
 gplot(g_normExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=expertLayout, edgelinewidth=edgelinewidth)
-draw(SVG("GrapheNormCooccurenceExpertsAffaires.svg", 20cm, 20cm), gplot(g_normExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=expertLayout, edgelinewidth=edgelinewidth))
+draw(SVG("GrapheNormCooccurenceExpertsAffaires2.svg", 20cm, 20cm), gplot(g_normExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=expertLayout, edgelinewidth=edgelinewidth))
 # Graphe valué de co-occurence des experts par les affaires pondéré sur le nombre d’expertises
 gplot(g_normExpertisesAfM_t, nodelabel=expertNames, nodelabelc=nodelabelc, nodelabeldist=3.5, nodelabelangleoffset=π/2, nodesize=nodesize, nodefillc=expertfillc, layout=circular_layout, edgelinewidth=edgelinewidth)
 
@@ -659,8 +665,11 @@ v = Vector()
 for i in 1:numExperts
     push!(v, (numExpertises + 2numExperts - 2) / sum(replace(gdistances(expertisesGraph, i), 9223372036854775807 => 0)))
 end
+v
 
-metrics = DataFrame(expert = expertNames, colonne=expertsColumns, normDeg=bigraphNormDeg[1:40],  bigraphDegreeCentrality=bigraphDegreeCentrality, degree=degree(g_normExpertisesAfM_t), betweennessCentrality=betweenness_centrality(g_normExpertisesAfM_t), closenessCentrality=closenessCentrality, degreeCentrality=degreeCentrality, eigenvectorCentrality=eigenvectorCentrality, katzCentrality=katzCentrality, pagerank=pagerank(g_normExpertisesAfM_t), radialityCentrality=radialityCentrality, stressCentrality=stressCentrality, collabArchi=collabArchi, collabEnt=collabEnt, collabAutres=collabAutres)
+metrics = DataFrame(expert = expertNames, colonne=expertsColumns, normDeg=bigraphNormDeg[1:40],  bigraphDegreeCentrality=bigraphDegreeCentrality, close=v, degree=degree(g_normExpertisesAfM_t), betweennessCentrality=betweenness_centrality(g_normExpertisesAfM_t), closenessCentrality=closenessCentrality, degreeCentrality=degreeCentrality, eigenvectorCentrality=eigenvectorCentrality, katzCentrality=katzCentrality, pagerank=pagerank(g_normExpertisesAfM_t), radialityCentrality=radialityCentrality, stressCentrality=stressCentrality, collabArchi=collabArchi, collabEnt=collabEnt, collabAutres=collabAutres)
+centrality = describe(select(metrics, :expert, :closenessCentrality, :close, :bigraphDegreeCentrality, :normDeg))
+println(select(metrics, :expert, :closenessCentrality, :close, :bigraphDegreeCentrality, :normDeg))
 collabArchi
 
 metrics
