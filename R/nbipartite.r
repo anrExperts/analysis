@@ -8,6 +8,9 @@ year <- "1726"
 networksUri <- "https://experts.huma-num.fr/xpr/networks/"
 dataUri <- "https://experts.huma-num.fr/xpr/data/"
 
+## function 
+source("/Volumes/data/github/analysis/R/assortativity_remainin_weights.r")
+
 ## Networks & Data
 expertisesNetwork <- read.csv2(paste(networksUri,year,"/expertises", sep=""), header=TRUE, sep = ",") 
 categoriesNetwork <- read.csv2(paste(networksUri,year,"/categories", sep=""), header=TRUE, sep = ",")
@@ -95,8 +98,9 @@ plot(nExpertsGraph)
 degree(nExpertsGraph)
 strength(nExpertsGraph)
 
-assortativity.nominal(nExpertsGraph, types=V(nExpertsGraph)$column)
-assortativity(nExpertsGraph, types1=V(nExpertsGraph)$column)
-assortativity_degree(nExpertsGraph)
-assortativity(nExpertsGraph, types1 = graph.strength(nExpertsGraph), directed = F)
-assortativity.weightEdge(nExpertsGraph)
+nAssortNominal <- assortativity.nominal(nExpertsGraph, types=V(nExpertsGraph)$column)
+nAssort <- assortativity(nExpertsGraph, types1=V(nExpertsGraph)$column)
+nAssortDegree <- assortativity_degree(nExpertsGraph)
+#assortativity(nExpertsGraph, types1 = graph.strength(nExpertsGraph), directed = F)
+#assortativity.weightEdge(nExpertsGraph)
+nAssortRemainingWeights <- assortativity.remainingWeights(nExpertsGraph)
