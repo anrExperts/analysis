@@ -18,7 +18,6 @@ using GR
 using MultivariateStats
 using GraphIO
 using EzXML
-using Statistics
 # Cairo et Compose : pour sauvegarder les gplot
 using Cairo
 using Compose
