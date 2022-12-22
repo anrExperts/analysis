@@ -1,9 +1,8 @@
-#
-#
-#
-#
-#
-
+# ANR experts
+# author: @sardinecan
+# date: 2022-12
+# description: this Julia script creates collection and sends files via the Nakala API
+# licence:
 
 #%% Packages
 # alt + enter (⌥ + ↵) to execute cells
@@ -14,26 +13,37 @@ using JSON
 
 
 #%% variables
-apiKey = "" # À obtenir dans l'onglet "mon profil" sur Nakala.fr
-#apiKey = "01234567-89ab-cdef-0123-456789abcdef" # API test
+path = @__DIR__ # chemin vers le dossier courant
 
-collectionName = "Z1J432" # nom de la collection 
-path = "/Users/josselinmorvan/files/dh/xpr/analysis/julia/Z1J431" # chemin vers les documents à déposer sur Nakala
-#normalisation du chemin
-path =  if endswith(path, "/") path
-        else path*"/"
-        end
-metadata = CSV.File(path*"metadata.csv", header=1) |> DataFrame # fichier de métadonnées
+# identifiants
+credentials = CSV.File(path*"/credentials.csv", header=1) |> DataFrame #liste des utilisateurs
+user = "jmorvan" #choix de l'utilisateur (api test = nakala)
+usrCredentials = filter(:user => n -> n == user, credentials) #récupération des identifiants
 
+apiKey = usrCredentials[1, :apikey] #clé API
+
+
+# fichiers/collection
+# /!\ Une collection publique ne peut contenir que des données publiées /!\
+# les fichiers à envoyer sont placés dans un sous dossier lot
+metadata = CSV.File(path*"/lot/metadata.csv", header=1) |> DataFrame # fichier de métadonnées 
+collectionName = metadata[1,:collection] # nom de la collection (les fichiers d'un même lot appartiennent à la même collection)
+
+# création d'un fichier csv de synthèse
+touch(path*"/lot/"*collectionName*".csv")
+f = open(path*"/lot/"*collectionName*".csv", "w") 
+    write(f, "title,identifier,fileIdentifier")
+close(f)
+
+# API Nakala
 urlCollections = "https://api.nakala.fr/collections"
 urlFiles = "https://api.nakala.fr/datas/uploads"
 urlMeta = "https://api.nakala.fr/datas"
 
+# API test Nakala
 #urlCollections = "https://apitest.nakala.fr/collections" # API test
 #urlFiles = "https://apitest.nakala.fr/datas/uploads" # API test
-#urlMeta = "https://apitest.nakala.fr/datas"
-
-
+#urlMeta = "https://apitest.nakala.fr/datas" # API test
 
 
 #%% Création de la collection
@@ -43,7 +53,7 @@ headers = Dict(
 )
 
 body = Dict(
-    :status => "public",
+    :status => "private",
     :metas =>  [
         Dict(
             :value => collectionName,
@@ -54,10 +64,14 @@ body = Dict(
     ]
 )
 
-collectionRequest = HTTP.request("POST", urlCollections, headers, JSON.json(body)) # envoi des données pour la création de la collection
-collectionResponse = JSON.parse(String(HTTP.payload(collectionRequest))) # réponse du server
+postCollection = HTTP.request("POST", urlCollections, headers, JSON.json(body)) # envoi des données pour la création de la collection
+collectionResponse = JSON.parse(String(HTTP.payload(postCollection))) # réponse du server
 collectionId = collectionResponse["payload"]["id"] # récupération de l'id de la collection
 println("Identifiant collection : ", collectionId)
+
+f = open(path*"/lot/"*collectionName*".csv", "a") 
+    write(f, "\ncollection,"*collectionId*",")
+close(f)
 
 
 
@@ -67,13 +81,13 @@ for (i, row) in enumerate( eachrow( metadata ) )
     println("Envoi du fichier n°", i)
     
     # récupération des métadonnées pour chaque fichier
-    filename = row[1]
-    title = row[2]
-    author = row[3]
-    date = row[4]
-    license = row[5]
-    status = row[6]
-    datatype = row[7]
+    filename = row[:filename]
+    title = row[:title]
+    author = row[:author]
+    date = row[:date]
+    license = row[:licence]
+    status = row[:status]
+    datatype = row[:datatype]
 
     ## dépôt du fichier du Nakala
     headers = Dict(
@@ -81,12 +95,14 @@ for (i, row) in enumerate( eachrow( metadata ) )
         :accept => "application/json"
     )
     
-    file = open(path*filename, "r")    
+    file = open(path*"/lot/"*filename, "r")    
     body = HTTP.Form(Dict(:file => file))
 
-    sendFile = HTTP.post(urlFiles, headers=headers, body=body)
-    fileResponse = JSON.parse(String(HTTP.payload(sendFile)))
-    
+    fileUpload = HTTP.post(urlFiles, headers=headers, body=body)
+    fileResponse = JSON.parse(String(HTTP.payload(fileUpload)))
+    fileIdentifier = fileResponse["sha1"]
+    println(fileIdentifier)
+
     files = Vector() 
     push!(files, fileResponse) # récupération de l'identifiant du fichier pour le dépot des métadonnées
 
@@ -138,6 +154,7 @@ for (i, row) in enumerate( eachrow( metadata ) )
 
 
     postdata = Dict(
+        :collectionsIds => [collectionId],
         :status => status,
         :files => files,
         :metas => meta
@@ -149,11 +166,17 @@ for (i, row) in enumerate( eachrow( metadata ) )
         "Content-Type" => "application/json"
     )
     
-    response = HTTP.request("POST", urlMeta, headers, JSON.json(postdata))
+    metadataUpload = HTTP.request("POST", urlMeta, headers, JSON.json(postdata))
+    metadataResponse = JSON.parse(String(HTTP.payload(metadataUpload))) # réponse du server
+    metadataId = metadataResponse["payload"]["id"] # récupération de l'id de la collection
     
-    println(response)
+    println(metadataId)
+
+    f = open(path*"/lot/"*collectionName*".csv", "a") 
+        write(f, "\n"*filename*","*metadataId*","*fileIdentifier)
+    close(f)
+
 
 end 
 
-# @todo : gestion des erreurs (réponses server) + ajouter la collection dans les métadonnées
-# @quest : envoyer toutes les métadonnées en même temps ? 
+# @todo : gestion des erreurs (réponses server) ?
