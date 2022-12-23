@@ -60,8 +60,8 @@ metricsArchi
 centrality
 
 #R scripts for assortativity
-R"source('/Volumes/data/github/analysis/R/nbipartite.r')"
-R"source('/Volumes/data/github/analysis/R/bipartite.r')"
+R"source('/Users/josselinmorvan/files/dh/xpr/analysis/R/networkAnalysis/nbipartite.r')"
+R"source('/Users/josselinmorvan/files/dh/xpr/analysis/R/networkAnalysis/bipartite.r')"
 
 @rget nAssort
 @rget nAssortNominal

@@ -16,7 +16,7 @@ using JSON
 path = @__DIR__ # chemin vers le dossier courant
 
 # identifiants
-credentials = CSV.File(path*"/credentials.csv", header=1) |> DataFrame #liste des utilisateurs
+credentials = CSV.read(path*"/credentials.csv", DataFrame, header=1) #liste des utilisateurs
 user = "jmorvan" #choix de l'utilisateur (api test = nakala)
 usrCredentials = filter(:user => n -> n == user, credentials) #récupération des identifiants
 
@@ -26,7 +26,7 @@ apiKey = usrCredentials[1, :apikey] #clé API
 # fichiers/collection
 # /!\ Une collection publique ne peut contenir que des données publiées /!\
 # les fichiers à envoyer sont placés dans un sous dossier lot
-metadata = CSV.File(path*"/lot/metadata.csv", header=1) |> DataFrame # fichier de métadonnées 
+metadata = CSV.read(path*"/lot/metadata.csv", DataFrame, header=1) # fichier de métadonnées 
 collectionName = metadata[1,:collection] # nom de la collection (les fichiers d'un même lot appartiennent à la même collection)
 
 # création d'un fichier csv de synthèse
@@ -135,7 +135,7 @@ for (i, row) in enumerate( eachrow( metadata ) )
     )
     push!(meta, metaAuthor)
 
-    # data (obligatoire, mais accepte la valeur null)    
+    # date (obligatoire, mais accepte la valeur null)    
     metaCreated = Dict(
         :value => date,
         :typeUri => "http://www.w3.org/2001/XMLSchema#string",
@@ -168,7 +168,7 @@ for (i, row) in enumerate( eachrow( metadata ) )
     
     metadataUpload = HTTP.request("POST", urlMeta, headers, JSON.json(postdata))
     metadataResponse = JSON.parse(String(HTTP.payload(metadataUpload))) # réponse du server
-    metadataId = metadataResponse["payload"]["id"] # récupération de l'id de la collection
+    metadataId = metadataResponse["payload"]["id"] # récupération de l'id
     
     println(metadataId)
 
