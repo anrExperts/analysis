@@ -40,6 +40,7 @@ for directory in directories
 
   #%% Dépôt des fichiers
   files = Vector()
+  filesInfo = []
   for (i, row) in enumerate(eachrow(files2upload))
     filename = row[:filename]
     
@@ -59,6 +60,7 @@ for directory in directories
     println(fileIdentifier)
 
     push!(files, fileResponse) # récupération de l'identifiant Nakala du fichier (fileIdentifier) pour le dépot des métadonnées et de la ressource
+    push!(filesInfo, [filename, fileIdentifier])
   end
 
   # métadonnées de la ressource
@@ -182,4 +184,26 @@ for directory in directories
   metadataId = metadataResponse["payload"]["id"] # récupération de l'identifiant Nakala de la ressource (identifier)
     
   println(metadataId)
+
+  if isfile(joinpath(path, "datasUploaded.csv"))
+    f = open(joinpath(path, "datasUploaded.csv"), "a")       
+      write(f, "\n"*directory*","*metadataId)
+    close(f)      
+  else
+    touch(joinpath(path, "datasUploaded.csv"))
+    f = open(joinpath(path, "datasUploaded.csv"), "w") 
+      write(f, "ressource,identifiant")
+      write(f, "\n"*directory*","*metadataId)
+    close(f)
+  end
+
+  
+  touch(joinpath(path, directory*".csv"))
+  f = open(joinpath(path, directory*".csv"), "w") 
+    write(f, "filename,identifier,fileIdentifier")
+    for file in filesInfo
+      write(f, "\n"*file[1]*","*metadataId*","*file[2])
+    end
+  close(f)
 end
+
