@@ -28,20 +28,19 @@ using RCall
 #%% Variables
 year = 1776
 # dataframe experts par expertises
-#expertisesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/$year/expertises").body, header=1) |> DataFrame
-expertisesNetwork = CSV.File(HTTP.get("http://localhost:8984/xpr/networks/$year/expertises").body, header=1) |> DataFrame
+expertisesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/$year/expertises").body, header=1) |> DataFrame
 # dataframe experts par categories
 categoriesNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/$year/categories").body, header=1) |> DataFrame
 # dataframe greffiers par expertises
-#clerksNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/$year/clerks").body, header=1) |> DataFrame
-clerksNetwork = CSV.File(HTTP.get("http://localhost:8984/xpr/networks/$year/clerks").body, header=1) |> DataFrame
+clerksNetwork = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/networks/$year/clerks").body, header=1) |> DataFrame
+
 
 # données sur les experts
 expertsData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/experts").body, header=1) |> DataFrame
 # données complétées par RC
 #expertsData = CSV.File("/Volumes/data/github/analysis/data/expertsData$year.csv", header=1) |> DataFrame
 # données sur les greffiers
-clerksData = CSV.File(HTTP.get("http://localhost:8984/xpr/data/$year/clerks").body, header=1) |> DataFrame
+clerksData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/clerks").body, header=1) |> DataFrame
 # données sur les expertises
 expertisesData = CSV.File(HTTP.get("https://experts.huma-num.fr/xpr/data/$year/expertises").body, header=1) |> DataFrame
 # données sur les catégories
