@@ -27,25 +27,25 @@ numExpertises = length(expertises)
 numNodes = numExpertises + numExperts
 
 # création du Graph
-expertisesBigraph = MetaGraph(SimpleGraph())
+expertisesBigraph = MetaGraph(Graphs.SimpleGraphs.SimpleGraph())
 # Création des nœuds
-add_vertices!(expertisesBigraph, numNodes)
+Graphs.add_vertices!(expertisesBigraph, numNodes)
 
 # ajout des métadonnées pour les nœuds experts
 for expert in 1:numExperts
-    set_prop!(expertisesBigraph, expert, :id, experts[expert])
-    set_prop!(expertisesBigraph, expert, :name, expertNames[expert])
-    set_prop!(expertisesBigraph, expert, :column, expertsColumns[expert])
-    set_prop!(expertisesBigraph, expert, :cat, "expert")
-    set_prop!(expertisesBigraph, expert, :degree, sum(expertisesNetwork[expert, Not(:id)]))
+    MetaGraphs.set_prop!(expertisesBigraph, expert, :id, experts[expert])
+    MetaGraphs.set_prop!(expertisesBigraph, expert, :name, expertNames[expert])
+    MetaGraphs.set_prop!(expertisesBigraph, expert, :column, expertsColumns[expert])
+    MetaGraphs.set_prop!(expertisesBigraph, expert, :cat, "expert")
+    MetaGraphs.set_prop!(expertisesBigraph, expert, :degree, sum(expertisesNetwork[expert, Not(:id)]))
 end
 
 # ajout des métadonnées pour les nœuds expertises
 global posExpertise = 1
 for expertise in (numExperts+1):numNodes
     for i in 1:numExpertises
-        set_prop!(expertisesBigraph, expertise, :id, expertises[posExpertise])
-        set_prop!(expertisesBigraph, expertise, :cat, "expertise")
+        MetaGraphs.set_prop!(expertisesBigraph, expertise, :id, expertises[posExpertise])
+        MetaGraphs.set_prop!(expertisesBigraph, expertise, :cat, "expertise")
     end
     global posExpertise += 1
 end
@@ -56,7 +56,7 @@ for column in expertises
     global pos = 1
     for expert in expertisesNetwork[!, column]
         if expertisesNetwork[!, column][pos] > 0
-            add_edge!(expertisesBigraph, pos, col+numExperts)
+          MetaGraphs.add_edge!(expertisesBigraph, pos, col+numExperts)
         end
         global pos += 1
     end
@@ -394,3 +394,136 @@ centrality = describe(
                     :bigraphDegreeCentralityN,
                     :degreeCentrality
                 ))
+
+
+#########################################################
+# Experts - greffiers graph
+#########################################################
+#%%
+# vecteur contenant les id des experts
+experts = expertsData[!, :id]
+# vecteur contenant les noms des experts
+expertNames = expertsData[!, :surname]
+# vecteur contenant la catégorie des experts
+expertsColumns = expertsData[!, :column]
+# nb d'experts
+numExperts = length(experts)
+
+# vecteur contenant les id greffiers
+clerks = clerksData[!, :id]
+# vecteur contenant les noms des greffiers
+clerkNames = clerksData[!, :surname]
+# nb de greffiers
+numClerks = length(clerks)
+
+#nb total de nœuds (experts + greffiers)
+numNodes = numClerks + numExperts
+
+# création du Graph
+clerksBigraph = MetaGraph(Graphs.SimpleGraphs.SimpleGraph())
+# Création des nœuds
+Graphs.add_vertices!(clerksBigraph, numNodes)
+
+# ajout des métadonnées pour les nœuds experts
+for expert in 1:numExperts
+    MetaGraphs.set_prop!(clerksBigraph, expert, :id, experts[expert])
+    MetaGraphs.set_prop!(clerksBigraph, expert, :name, expertNames[expert])
+    MetaGraphs.set_prop!(clerksBigraph, expert, :column, expertsColumns[expert])
+    MetaGraphs.set_prop!(clerksBigraph, expert, :cat, "expert")
+    MetaGraphs.set_prop!(clerksBigraph, expert, :degree, sum(expertisesNetwork[expert, Not(:id)]))
+end
+
+# ajout des métadonnées pour les nœuds greffiers
+global posClerks = 1
+for clerk in (numExperts+1):numNodes
+    for i in 1:numClerks
+        MetaGraphs.set_prop!(clerksBigraph, clerk, :id, clerks[posClerks])
+        MetaGraphs.set_prop!(clerksBigraph, clerk, :name, clerkNames[posClerks])
+        MetaGraphs.set_prop!(clerksBigraph, clerk, :cat, "greffier")
+    end
+    global posClerks += 1
+end
+
+props(clerksBigraph, 58)
+
+# ajout des edges
+global col = 1
+for column in clerks
+    global pos = 1
+    for expert in clerksNetwork[!, column]
+        if clerksNetwork[!, column][pos] > 0
+          MetaGraphs.add_edge!(clerksBigraph, pos, col+numExperts)
+          println(pos, ", ", col+numExperts)
+        end
+        global pos += 1
+    end
+    global col += 1
+end
+
+# ajout des edges
+
+col = 1
+for column in clerks
+    global pos = 1
+    for expert in clerksNetwork[!, column]
+        if clerksNetwork[!, column][pos] > 0
+          push!(elw, clerksNetwork[!, column][pos])
+        end
+        global pos += 1
+    end
+    global col += 1
+end
+
+elw
+elw = Vector()
+collect(MetaGraphs.edges(clerksBigraph))
+for e in collect(MetaGraphs.edges(clerksBigraph))
+  println(Graphs.src(e), " - ", Graphs.dst(e))
+  push!(elw, clerksNetwork[!, Graphs.dst(e)-numExperts+1][Graphs.src(e)])
+end
+clerksNetwork[!, 6+1][1]
+clerksNetwork[!, 1][6]
+clerksNetwork[6, 1]
+#Graphs.has_edge(clerksBigraph, 32, 58)
+
+
+#########################################################
+# experts - greffiers bipartite graph VIZ
+#########################################################
+#node color
+ncClerksBigraph = Vector()
+#pour chaque nœuds du graph, on vérifie son type pour mettre à jour le vecteur (valeur 1 ou 2 correspondant au position du vecteur color ci-après)
+for i in sort(collect(keys(clerksBigraph.vprops)))
+  if clerksBigraph.vprops[i][:cat] == "expert"
+    if clerksBigraph.vprops[i][:column] == "architecte"
+      push!(ncClerksBigraph, 1)
+    elseif clerksBigraph.vprops[i][:column] == "entrepreneur"
+      push!(ncClerksBigraph, 2)
+    else
+      push!(ncClerksBigraph, 3)
+    end
+  else
+    push!(ncClerksBigraph, 4)
+  end
+end
+
+#node label
+nlClerksBigraph = Vector()
+for name in 1:(numNodes)
+    push!(nlClerksBigraph, clerksBigraph.vprops[name][:name])
+end
+nlClerksBigraph
+
+layoutClerksBigraph = (args...)->spring_layout(args...; C=30)
+ClerksBigraphPlot = gplot(
+  clerksBigraph,
+  nodelabel=nlClerksBigraph,
+  nodefillc=colors[ncClerksBigraph],
+  layout=layoutClerksBigraph,
+  nodelabelc=colorant"orange",
+  nodelabeldist=3.5,
+  nodelabelangleoffset=π/2,
+  edgelinewidth=elw, 
+  edgestrokec=colorant"black"
+)
+clerksBigraph
