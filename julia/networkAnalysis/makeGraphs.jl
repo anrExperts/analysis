@@ -100,25 +100,25 @@ categoriesNames = categoriesData[!, :name]
 numCategories = length(categories)
 
 # création du Graph
-categoriesBigraph = MetaGraph(SimpleGraph())
+categoriesBigraph = MetaGraph(Graphs.SimpleGraphs.SimpleGraph())
 
 # Création des nœuds
-add_vertices!(categoriesBigraph, (numExperts+numCategories))
+Graphs.add_vertices!(categoriesBigraph, (numExperts+numCategories))
 # ajout des métadonnées pour les nœuds experts
 for expert in 1:numExperts
-    set_prop!(categoriesBigraph, expert, :id, experts[expert])
-    set_prop!(categoriesBigraph, expert, :name, expertNames[expert])
-    set_prop!(categoriesBigraph, expert, :column, expertsColumns[expert])
-    set_prop!(categoriesBigraph, expert, :cat, "expert")
+    MetaGraphs.set_prop!(categoriesBigraph, expert, :id, experts[expert])
+    MetaGraphs.set_prop!(categoriesBigraph, expert, :name, expertNames[expert])
+    MetaGraphs.set_prop!(categoriesBigraph, expert, :column, expertsColumns[expert])
+    MetaGraphs.set_prop!(categoriesBigraph, expert, :cat, "expert")
 end
 
 # ajout des métadonnées pour les nœuds categories
 global posCategory = 1
 for category in (numExperts+1):(numExperts+numCategories)
     for i in 1:numCategories
-        set_prop!(categoriesBigraph, category, :id, categories[posCategory])
-        set_prop!(categoriesBigraph, category, :name, categoriesNames[posCategory])
-        set_prop!(categoriesBigraph, category, :cat, "category")
+        MetaGraphs.set_prop!(categoriesBigraph, category, :id, categories[posCategory])
+        MetaGraphs.set_prop!(categoriesBigraph, category, :name, categoriesNames[posCategory])
+        MetaGraphs.set_prop!(categoriesBigraph, category, :cat, "category")
     end
     global posCategory += 1
 end
@@ -129,7 +129,7 @@ for column in categories
     global pos = 1
     for expert in categoriesNetwork[!, column]
         if categoriesNetwork[!, column][pos] > 0
-            add_edge!(categoriesBigraph, pos, col+numExperts)
+            MetaGraphs.add_edge!(categoriesBigraph, pos, col+numExperts)
         end
         global pos += 1
     end
@@ -181,14 +181,14 @@ categoriesBigraphPlot = gplot(
 #########################################################
 
 # Matrice bimodale experts par expertises
-expertsByExpertisesMatrix = Matrix(adjacency_matrix(expertisesBigraph))
+expertsByExpertisesMatrix = Matrix(Graphs.adjacency_matrix(expertisesBigraph))
 # Matrice d'affiliation bimodale à partir du graph
 amExpertsByExpertises = expertsByExpertisesMatrix[1:numExperts, (numExperts+1):numNodes]
 # Projection sur les experts
 ampExpertsByExpertises = amExpertsByExpertises * transpose(amExpertsByExpertises)
 
 # Graphe de co-occurence des experts par les affaires
-expertsGraphFromExpertises = Graph(ampExpertsByExpertises)
+expertsGraphFromExpertises = Graphs.Graph(ampExpertsByExpertises)
 # calcul du degré des nœuds
 #nodesize = vec(sum(ampExpertsByExpertises, dims=1))
 #pour faire un node size sur la force des nœuds (retire les selfLoop)
@@ -197,12 +197,12 @@ nsExpertsGraphFromExpertises = [first(sum(ampExpertsByExpertises[:, i], dims=1))
 nsExpertsGraphFromExpertises = [sqrt(i) for i in nsExpertsGraphFromExpertises]
 
 # supression des boucles (self-loops)
-[rem_edge!(expertsGraphFromExpertises, i, i) for i in 1:numExperts]
+[Graphs.rem_edge!(expertsGraphFromExpertises, i, i) for i in 1:numExperts]
 
 # pondération des edges
 # @todo insérer les valeurs dans les propriétés du graphe
 elwExpertsGraphFromExpertises = Vector()
-for i in collect(edges(expertsGraphFromExpertises))
+for i in collect(Graphs.edges(expertsGraphFromExpertises))
     edgesString = split(string(i), " ")
     from = parse(Int64, edgesString[2])
     to = parse(Int64, edgesString[4])
@@ -265,14 +265,14 @@ for expert in 1:numExperts
 end
 
 #graphe de la matrice normalisée transposée
-expertsGraphFromExpertisesN = MetaGraph(SimpleGraph(ampExpertsByExpertisesN))
-[rem_edge!(expertsGraphFromExpertisesN, i, i) for i in 1:numExperts]
+expertsGraphFromExpertisesN = MetaGraph(Graphs.SimpleGraphs.SimpleGraph(ampExpertsByExpertisesN))
+[Graphs.rem_edge!(expertsGraphFromExpertisesN, i, i) for i in 1:numExperts]
 
 #########################################################
 # VIZ
 #########################################################
 # pondération des edges avec les valeurs normalisées
-ecExpertsGraphFromExpertisesN = collect(edges(expertsGraphFromExpertisesN))
+ecExpertsGraphFromExpertisesN = collect(MetaGraphs.edges(expertsGraphFromExpertisesN))
 elwExpertsGraphFromExpertisesN = Vector()
 for i in ecExpertsGraphFromExpertisesN
     edgesString = split(string(i), " ")
@@ -308,9 +308,9 @@ expertsMetrics = expertsData
 # Bigraph experts par expertises (expertisesBigraph)
 # La densité d'un réseau bipartite nb edges/(nb experts * nb affaires) puisque les nœuds d'un mode ne peuvent pas avoir de relations entre eux.
 # si densité = 1 tous les nœuds sont connectés entre eux, si 0 aucune connection.
-expertisesBigraphDensity = ne(expertisesBigraph)/(numExperts*numExpertises)
-expertsGraphFromExpertisesDensity = LightGraphs.density(expertsGraphFromExpertises)
-expertsGraphFromExpertisesNDensity = LightGraphs.density(expertsGraphFromExpertisesN)
+expertisesBigraphDensity = Graphs.ne(expertisesBigraph)/(numExperts*numExpertises)
+expertsGraphFromExpertisesDensity = Graphs.density(expertsGraphFromExpertises)
+expertsGraphFromExpertisesNDensity = Graphs.density(expertsGraphFromExpertisesN)
 
 # Centralité de degré
 # C'est la somme des edges d'un nœud
@@ -330,14 +330,14 @@ for i in 1:numNodes
         push!(expertisesBigraphCentralityN, value)
     end
 end
-expertsGraphFromExpertisesNCloseness = closeness_centrality(expertsGraphFromExpertisesN)
+expertsGraphFromExpertisesNCloseness = Graphs.closeness_centrality(expertsGraphFromExpertisesN)
 
 # closenessCentrality normalisée
 # @bug pb avec valeur 13 et 34
 #%%
 expertsGraphFromExpertisesNClosenessN = Vector()
 for i in 1:numExperts
-    push!(expertsGraphFromExpertisesNClosenessN, (numExpertises + 2numExperts - 2) / sum(replace(gdistances(expertisesBigraph, i), 9223372036854775807 => 0)))
+    push!(expertsGraphFromExpertisesNClosenessN, (numExpertises + 2numExperts - 2) / sum(replace(Graphs.gdistances(expertisesBigraph, i), 9223372036854775807 => 0)))
 end
 #%%
 # centralité de proximité
@@ -349,16 +349,17 @@ end
 # plus la valeur est faible plus le nœud est central
 
 #degree
-degreeMeasure = degree(expertsGraphFromExpertisesN)
-betweennessCentrality = betweenness_centrality(expertsGraphFromExpertisesN)
-degreeCentrality = degree_centrality(expertsGraphFromExpertisesN)
-closenessCentrality = closeness_centrality(expertsGraphFromExpertisesN)
-eigenvectorCentrality = eigenvector_centrality(expertsGraphFromExpertisesN)
-katzCentrality = katz_centrality(expertsGraphFromExpertisesN)
+degreeMeasure = Graphs.degree(expertsGraphFromExpertisesN)
+betweennessCentrality = Graphs.betweenness_centrality(expertsGraphFromExpertisesN)
+degreeCentrality = Graphs.degree_centrality(expertsGraphFromExpertisesN)
+# erreur Julia avec le calcule de closeness_centrality
+closenessCentrality = Graphs.closeness_centrality(expertsGraphFromExpertisesN)
+eigenvectorCentrality = Graphs.eigenvector_centrality(expertsGraphFromExpertisesN)
+katzCentrality = Graphs.katz_centrality(expertsGraphFromExpertisesN)
 #pagerank = pagerank(gnormmp)
-radialityCentrality = radiality_centrality(expertsGraphFromExpertisesN)
-stressCentrality = stress_centrality(expertsGraphFromExpertisesN)
-pagerankMeasure = pagerank(expertsGraphFromExpertisesN)
+radialityCentrality = Graphs.radiality_centrality(expertsGraphFromExpertisesN)
+stressCentrality = Graphs.stress_centrality(expertsGraphFromExpertisesN)
+pagerankMeasure = Graphs.pagerank(expertsGraphFromExpertisesN)
 
 metrics = DataFrame(
             expert = expertNames,
@@ -462,19 +463,19 @@ end
 
 # ajout des edges
 
-col = 1
-for column in clerks
-    global pos = 1
-    for expert in clerksNetwork[!, column]
-        if clerksNetwork[!, column][pos] > 0
-          push!(elw, clerksNetwork[!, column][pos])
-        end
-        global pos += 1
-    end
-    global col += 1
-end
+#col = 1
+#for column in clerks
+#    global pos = 1
+#    for expert in clerksNetwork[!, column]
+#        if clerksNetwork[!, column][pos] > 0
+#          push!(elw, clerksNetwork[!, column][pos])
+#        end
+#        global pos += 1
+#    end
+#    global col += 1
+#end
 
-elw
+#elw
 elw = Vector()
 collect(MetaGraphs.edges(clerksBigraph))
 for e in collect(MetaGraphs.edges(clerksBigraph))

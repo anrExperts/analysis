@@ -23,7 +23,7 @@ using EzXML
 using Cairo
 using Compose
 
-using RCall
+#using RCall
 
 #%% Variables
 year = 1776
