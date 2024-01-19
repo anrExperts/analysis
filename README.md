@@ -1,6 +1,10 @@
 # Analyses des corpus xpr
 Collection de scripts et notebooks pour l'analyse des données issuée du projet Experts ([https://experts.huma-num.fr/](https://experts.huma-num.fr/)).
 
+Les données et l'application Experts sont accessibles sur Github :
+- application xpr [https://github.com/anrExperts/xpr](https://github.com/anrExperts/xpr)
+- données xpr [https://github.com/anrExperts/data](https://github.com/anrExperts/data)
+
 ## Bibliographie
 - Château-Dutier, Emmanuel, et Josselin Morvan. 2021. « Un outil de dépouillement de sources archivistiques basé sur des technologies XML ». Dans Colloque Humanistica 2021 - Recueil des résumés. , 78‑80. Rennes, 10-12 mai 2021 (France). [https://doi.org/10.5281/zenodo.4745006](https://doi.org/10.5281/zenodo.4745006).
 - Château-Dutier, Emmanuel, Josselin Morvan, et Robert Carvais. 2021. « La répartition des affaires au sein de la communauté d’experts-jurés parisiens du bâtiment au XVIIIe siècle : approche quantitative et analyse de réseau bi-parti pour 1726 ». Dans 6e rencontre ResHIST. . 21-22 octobre 2021, Aix-en-Provence (France). [https://reshist.hypotheses.org/1663](https://reshist.hypotheses.org/1663).
